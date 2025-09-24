@@ -14,7 +14,7 @@ export const atlassianConfig: AtlassianConfig = {
 export const bitbucketConfig: BitbucketConfig = {
   workspace: process.env.BITBUCKET_WORKSPACE || '',
   username: process.env.BITBUCKET_USERNAME || '',
-  appPassword: process.env.BITBUCKET_APP_PASSWORD || '',
+  apiToken: process.env.BITBUCKET_API_TOKEN || '',
 };
 
 export function validateConfig(): void {
@@ -27,8 +27,8 @@ export function validateConfig(): void {
 }
 
 export function getBitbucketAuth(): string {
-  if (bitbucketConfig.username && bitbucketConfig.appPassword) {
-    return Buffer.from(`${bitbucketConfig.username}:${bitbucketConfig.appPassword}`).toString('base64');
+  if (bitbucketConfig.username && bitbucketConfig.apiToken) {
+    return Buffer.from(`${bitbucketConfig.username}:${bitbucketConfig.apiToken}`).toString('base64');
   }
   return Buffer.from(`${atlassianConfig.email}:${atlassianConfig.apiToken}`).toString('base64');
 }

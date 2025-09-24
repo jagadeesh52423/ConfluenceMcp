@@ -68,10 +68,10 @@ ATLASSIAN_API_TOKEN=your-api-token
 ATLASSIAN_CLIENT_ID=your-client-id
 ATLASSIAN_CLIENT_SECRET=your-client-secret
 
-# Optional: Bitbucket Configuration (if different from main Atlassian)
+# Bitbucket Configuration
 BITBUCKET_WORKSPACE=your-workspace
 BITBUCKET_USERNAME=your-username
-BITBUCKET_APP_PASSWORD=your-app-password
+BITBUCKET_API_TOKEN=your-bitbucket-api-token
 ```
 
 ### Getting API Tokens
@@ -82,13 +82,16 @@ BITBUCKET_APP_PASSWORD=your-app-password
 3. Give it a label and create
 4. Copy the token to your `.env` file
 
-#### Bitbucket App Password
-1. Go to your Bitbucket settings → App passwords
-2. Create a new app password with required permissions:
-   - Repositories: Read, Write, Admin
+#### Bitbucket API Token
+1. Go to your Bitbucket settings → Personal access tokens
+2. Create a new API token with required scopes:
+   - Repositories: Read, Write
    - Issues: Read, Write
    - Pull requests: Read, Write
-3. Copy the password to your `.env` file
+   - Pipelines: Read (if needed)
+3. Copy the token to your `.env` file
+
+**Note**: App passwords are deprecated as of September 9, 2025. Use API tokens instead.
 
 ## Usage
 

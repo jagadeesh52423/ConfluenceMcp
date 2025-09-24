@@ -9,7 +9,7 @@ export interface AtlassianConfig {
 export interface BitbucketConfig {
   workspace: string;
   username: string;
-  appPassword: string;
+  apiToken: string;
 }
 
 export interface JiraIssue {
