@@ -185,3 +185,6 @@ test-output/
 
 # Debug files
 debug.log
+
+# Claude Code local configuration
+.claude/
