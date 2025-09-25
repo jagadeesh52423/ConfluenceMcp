@@ -263,8 +263,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: 'jira_get_issue_transitions',
+        description: 'Get available transitions for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key (e.g., PROJECT-123)'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
         name: 'jira_transition_issue',
-        description: 'Transition a Jira issue to a different status',
+        description: 'Transition a Jira issue to a different status with smart field handling',
         inputSchema: {
           type: 'object',
           properties: {
@@ -275,6 +289,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             transitionId: {
               type: 'string',
               description: 'The transition ID'
+            },
+            fieldValues: {
+              type: 'object',
+              description: 'Optional field values for the transition'
+            }
+          },
+          required: ['issueKey', 'transitionId']
+        }
+      },
+      {
+        name: 'jira_transition_issue_interactive',
+        description: 'Transition a Jira issue with automatic field suggestion and validation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to transition'
+            },
+            transitionId: {
+              type: 'string',
+              description: 'The transition ID'
+            },
+            fieldValues: {
+              type: 'object',
+              description: 'Optional field values for the transition'
             }
           },
           required: ['issueKey', 'transitionId']
@@ -622,15 +662,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           description: string;
           issueType?: string;
         };
-        const issue = await jiraService.createIssue(projectKey, summary, description, issueType);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(issue, null, 2)
-            }
-          ]
-        };
+        try {
+          const issue = await jiraService.createIssue(projectKey, summary, description, issueType);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(issue, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to create Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Project: ${projectKey}\n- Summary: ${summary}\n- Issue Type: ${issueType || 'Task'}\n\n**Tip:** Check if all required fields are provided and project exists.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_update_issue': {
@@ -640,15 +693,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           description?: string;
           assignee?: string;
         };
-        const issue = await jiraService.updateIssue(issueKey, { summary, description, assignee });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(issue, null, 2)
-            }
-          ]
-        };
+        try {
+          const issue = await jiraService.updateIssue(issueKey, { summary, description, assignee });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(issue, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to update Jira issue ${issueKey}\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request Fields:**\n- Summary: ${summary || 'unchanged'}\n- Description: ${description || 'unchanged'}\n- Assignee: ${assignee || 'unchanged'}\n\n**Tip:** Check if the issue exists and you have permission to update it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_add_comment': {
@@ -676,17 +742,154 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'jira_transition_issue': {
-        const { issueKey, transitionId } = args as { issueKey: string; transitionId: string };
-        await jiraService.transitionIssue(issueKey, transitionId);
+      case 'jira_get_issue_transitions': {
+        const { issueKey } = args as { issueKey: string };
+        const transitions = await jiraService.getIssueTransitions(issueKey);
+
+        const transitionInfo = transitions.map(t => ({
+          id: t.id,
+          name: t.name,
+          to: t.to?.name || 'Unknown status'
+        }));
+
         return {
           content: [
             {
               type: 'text',
-              text: `Issue ${issueKey} transitioned successfully`
+              text: `Available transitions for ${issueKey}:\n\n${transitionInfo.map(t => `• **${t.name}** (ID: ${t.id}) → ${t.to}`).join('\n')}\n\nUse the transition ID with jira_transition_issue_interactive for smart field handling.`
             }
           ]
         };
+      }
+
+      case 'jira_transition_issue': {
+        const { issueKey, transitionId, fieldValues } = args as {
+          issueKey: string;
+          transitionId: string;
+          fieldValues?: Record<string, any>
+        };
+
+        try {
+          const result = await jiraService.transitionIssue(issueKey, transitionId, fieldValues);
+
+          if (result.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: result.message || `Issue ${issueKey} transitioned successfully`
+              }
+            ]
+          };
+        } else if (result.requiresInput && result.requiredFields) {
+          // Format required fields information for user
+          const fieldInfo = result.requiredFields.map(field => {
+            let info = `• **${field.name}** (${field.key})`;
+            if (field.options) {
+              info += `\n  Options: ${field.options.map(opt => `${opt.value} (${opt.id})`).join(', ')}`;
+            }
+            if (field.suggestion) {
+              info += `\n  💡 Suggestion: "${field.suggestion.value}" - ${field.suggestion.reason}`;
+            }
+            return info;
+          }).join('\n\n');
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${result.message}\n\n**Required Fields:**\n${fieldInfo}\n\n**Next Steps:**\nUse jira_transition_issue_interactive for automatic field suggestion, or provide fieldValues with the correct field IDs and values.`
+              }
+            ]
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: result.message || 'Transition failed with unknown error'
+              }
+            ],
+            isError: true
+          };
+        }
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to transition Jira issue ${issueKey}\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Transition ID: ${transitionId}\n- Field Values: ${JSON.stringify(fieldValues || {}, null, 2)}\n\n**Tip:** Check if the transition ID is valid for this issue and you have permission to transition it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_transition_issue_interactive': {
+        const { issueKey, transitionId, fieldValues } = args as {
+          issueKey: string;
+          transitionId: string;
+          fieldValues?: Record<string, any>
+        };
+
+        try {
+          const result = await jiraService.transitionIssueInteractive(issueKey, transitionId, fieldValues);
+
+        if (result.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: result.message || `Issue ${issueKey} transitioned successfully`
+              }
+            ]
+          };
+        } else if (result.requiresInput && result.requiredFields) {
+          // Still need user input even after smart suggestions
+          const fieldInfo = result.requiredFields.map(field => {
+            let info = `• **${field.name}** (${field.key})`;
+            if (field.options) {
+              info += `\n  Options: ${field.options.map(opt => `${opt.value} (${opt.id})`).join(', ')}`;
+            }
+            if (field.suggestion) {
+              info += `\n  💡 Suggestion: "${field.suggestion.value}" - ${field.suggestion.reason}`;
+            }
+            return info;
+          }).join('\n\n');
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `${result.message}\n\n**Fields still requiring input:**\n${fieldInfo}`
+              }
+            ]
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: result.message || 'Transition failed with unknown error'
+              }
+            ],
+            isError: true
+          };
+        }
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to transition Jira issue ${issueKey} (interactive mode)\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Transition ID: ${transitionId}\n- Field Values: ${JSON.stringify(fieldValues || {}, null, 2)}\n\n**Tip:** Check if the transition ID is valid for this issue and you have permission to transition it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       // Bitbucket Tools

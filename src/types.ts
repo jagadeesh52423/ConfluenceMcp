@@ -64,3 +64,43 @@ export interface SearchOptions {
   startAt?: number;
   expand?: string[];
 }
+
+// Smart Field Handling Types
+export interface JiraFieldOption {
+  id: string;
+  value: string;
+}
+
+export interface JiraFieldSuggestion {
+  value: string;
+  id?: string;
+  reason: string;
+}
+
+export interface JiraRequiredField {
+  key: string;
+  name: string;
+  type: string;
+  required: boolean;
+  options?: JiraFieldOption[];
+  suggestion?: JiraFieldSuggestion;
+}
+
+export interface JiraTransitionResponse {
+  success: boolean;
+  requiresInput?: boolean;
+  requiredFields?: JiraRequiredField[];
+  message?: string;
+  issueKey?: string;
+  transitionId?: string;
+}
+
+export interface FieldSuggestionRule {
+  pattern: RegExp;
+  defaultValue: string;
+  contextRules?: {
+    condition: (issue: JiraIssue) => boolean;
+    value: string;
+    reason: string;
+  }[];
+}

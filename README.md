@@ -18,9 +18,16 @@ A comprehensive Model Context Protocol (MCP) server that provides AI assistants 
 - Create new issues with customizable fields
 - Update existing issues
 - Add comments to issues
-- Transition issues between statuses
+- Transition issues between statuses with **Smart Field Handling**
 - List projects and issue types
 - Assign issues to users
+
+#### Smart Field Handling
+Advanced transition management with intelligent field suggestions:
+- **Contextual Analysis**: Analyzes issue content to provide smart field suggestions
+- **Pattern Recognition**: Recognizes common field patterns (DB scripts, test cases, etc.)
+- **Auto-Suggestions**: Provides context-aware suggestions with reasoning
+- **Enhanced Error Handling**: Returns detailed field information instead of cryptic errors
 
 ### Bitbucket Integration
 - List and search repositories
@@ -59,19 +66,29 @@ cp .env.example .env
 2. Fill in your Atlassian credentials in `.env`:
 
 ```env
-# Required: Atlassian Configuration
-ATLASSIAN_DOMAIN=your-domain.atlassian.net
-ATLASSIAN_EMAIL=your-email@example.com
-ATLASSIAN_API_TOKEN=your-api-token
+# Confluence Configuration
+CONFLUENCE_DOMAIN=your-domain.atlassian.net
+CONFLUENCE_EMAIL=your-email@example.com
+CONFLUENCE_API_TOKEN=your-confluence-api-token
+
+# Jira Configuration
+JIRA_DOMAIN=your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your-jira-api-token
 
 # Optional: OAuth Configuration (for advanced auth)
-ATLASSIAN_CLIENT_ID=your-client-id
-ATLASSIAN_CLIENT_SECRET=your-client-secret
+JIRA_CLIENT_ID=your-client-id
+JIRA_CLIENT_SECRET=your-client-secret
 
 # Bitbucket Configuration
 BITBUCKET_WORKSPACE=your-workspace
 BITBUCKET_USERNAME=your-username
 BITBUCKET_API_TOKEN=your-bitbucket-api-token
+
+# Legacy: Atlassian Configuration (backward compatibility)
+ATLASSIAN_DOMAIN=your-domain.atlassian.net
+ATLASSIAN_EMAIL=your-email@example.com
+ATLASSIAN_API_TOKEN=your-api-token
 ```
 
 ### Getting API Tokens
@@ -144,7 +161,9 @@ Add the following to your Claude Desktop configuration file:
 - `jira_update_issue`: Update existing issue
 - `jira_add_comment`: Add comment to issue
 - `jira_get_projects`: List all projects
-- `jira_transition_issue`: Change issue status
+- `jira_get_issue_transitions`: Get available transitions for an issue
+- `jira_transition_issue`: Change issue status (basic)
+- `jira_transition_issue_interactive`: Change issue status with smart field handling
 
 ### Bitbucket Tools
 
@@ -167,8 +186,28 @@ AI: Uses confluence_search_pages with query "API documentation"
 User: "Create a new Jira issue for the bug I found"
 AI: Uses jira_create_issue with appropriate project, summary, and description
 
+User: "Move this Jira ticket to Code Review status"
+AI: Uses jira_transition_issue_interactive which automatically:
+     - Analyzes the issue content for context
+     - Provides smart suggestions for required fields
+     - Handles transition with minimal user input
+
 User: "What pull requests are open in my main repository?"
 AI: Uses bitbucket_get_pull_requests with your repository name
+```
+
+### Smart Field Handling Examples
+
+```
+Scenario: Transitioning a template configuration issue
+Issue: "Update notification template to use 'Prefr App'"
+Smart Suggestion: DB Script = "No" (Template changes use MOFU tool)
+                  Test Cases = "No" (Template changes don't require separate tests)
+
+Scenario: Transitioning a new feature development issue
+Issue: "Implement user authentication system"
+Smart Suggestion: DB Script = "Yes" (New features typically need database changes)
+                  Test Cases = "Yes" (New features require comprehensive testing)
 ```
 
 ## Development
@@ -179,10 +218,12 @@ src/
 ├── index.ts              # Main MCP server
 ├── types.ts              # TypeScript interfaces
 ├── config.ts             # Configuration management
-├── atlassian-client.ts   # Base API client
+├── confluence-client.ts  # Confluence API client
+├── jira-client.ts        # Jira API client
+├── bitbucket-client.ts   # Bitbucket API client
 └── services/
     ├── confluence.ts     # Confluence API service
-    ├── jira.ts          # Jira API service
+    ├── jira.ts          # Jira API service (with smart field handling)
     └── bitbucket.ts     # Bitbucket API service
 ```
 
