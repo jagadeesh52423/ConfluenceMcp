@@ -542,28 +542,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Confluence Tools
       case 'confluence_search_pages': {
         const { query, limit } = args as { query?: string; limit?: number };
-        const pages = await confluenceService.searchPages({ query, limit });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(pages, null, 2)
-            }
-          ]
-        };
+        try {
+          const pages = await confluenceService.searchPages({ query, limit });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(pages, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to search Confluence pages\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Query: ${query || 'none'}\n- Limit: ${limit || 25}\n\n**Tip:** Check your Confluence permissions and that the domain is accessible.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'confluence_get_page': {
         const { pageId } = args as { pageId: string };
-        const page = await confluenceService.getPage(pageId);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(page, null, 2)
-            }
-          ]
-        };
+        try {
+          const page = await confluenceService.getPage(pageId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(page, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n\n**Tip:** Check if the page ID exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'confluence_create_page': {
@@ -573,15 +599,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: string;
           parentId?: string;
         };
-        const page = await confluenceService.createPage(spaceKey, title, content, parentId);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(page, null, 2)
-            }
-          ]
-        };
+        try {
+          const page = await confluenceService.createPage(spaceKey, title, content, parentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(page, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to create Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Space Key: ${spaceKey}\n- Title: ${title}\n- Parent ID: ${parentId || 'none'}\n\n**Tip:** Check if the space exists and you have permission to create pages in it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'confluence_update_page': {
@@ -591,68 +630,133 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: string;
           version: number;
         };
-        const page = await confluenceService.updatePage(pageId, title, content, version);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(page, null, 2)
-            }
-          ]
-        };
+        try {
+          const page = await confluenceService.updatePage(pageId, title, content, version);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(page, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to update Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n- Title: ${title}\n- Version: ${version}\n\n**Tip:** Check if the page exists, version is correct, and you have permission to edit it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'confluence_get_spaces': {
         const { limit } = args as { limit?: number };
-        const spaces = await confluenceService.getSpaces(limit);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(spaces, null, 2)
-            }
-          ]
-        };
+        try {
+          const spaces = await confluenceService.getSpaces(limit);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(spaces, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Confluence spaces\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Limit: ${limit || 25}\n\n**Tip:** Check your Confluence permissions and API access.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'confluence_get_pages_by_space': {
         const { spaceKey, limit } = args as { spaceKey: string; limit?: number };
-        const pages = await confluenceService.getPagesBySpace(spaceKey, limit);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(pages, null, 2)
-            }
-          ]
-        };
+        try {
+          const pages = await confluenceService.getPagesBySpace(spaceKey, limit);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(pages, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get pages from Confluence space\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Space Key: ${spaceKey}\n- Limit: ${limit || 25}\n\n**Tip:** Check if the space key exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       // Jira Tools
       case 'jira_search_issues': {
         const { query, limit } = args as { query?: string; limit?: number };
-        const issues = await jiraService.searchIssues({ query, limit });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(issues, null, 2)
-            }
-          ]
-        };
+        try {
+          const issues = await jiraService.searchIssues({ query, limit });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(issues, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to search Jira issues\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Query: ${query || 'none'}\n- Limit: ${limit || 50}\n\n**Tip:** Check your JQL syntax and Jira permissions.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_get_issue': {
         const { issueKey } = args as { issueKey: string };
-        const issue = await jiraService.getIssue(issueKey);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(issue, null, 2)
-            }
-          ]
-        };
+        try {
+          const issue = await jiraService.getIssue(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(issue, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue key exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_create_issue': {
@@ -719,47 +823,86 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'jira_add_comment': {
         const { issueKey, comment } = args as { issueKey: string; comment: string };
-        await jiraService.addComment(issueKey, comment);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Comment added to issue ${issueKey}`
-            }
-          ]
-        };
+        try {
+          await jiraService.addComment(issueKey, comment);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Comment added to issue ${issueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add comment to Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Comment: ${comment.substring(0, 100)}...\n\n**Tip:** Check if the issue exists and you have permission to comment on it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_get_projects': {
-        const projects = await jiraService.getProjects();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(projects, null, 2)
-            }
-          ]
-        };
+        try {
+          const projects = await jiraService.getProjects();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(projects, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Jira projects\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Tip:** Check your Jira permissions and API access.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_get_issue_transitions': {
         const { issueKey } = args as { issueKey: string };
-        const transitions = await jiraService.getIssueTransitions(issueKey);
+        try {
+          const transitions = await jiraService.getIssueTransitions(issueKey);
 
-        const transitionInfo = transitions.map(t => ({
-          id: t.id,
-          name: t.name,
-          to: t.to?.name || 'Unknown status'
-        }));
+          const transitionInfo = transitions.map(t => ({
+            id: t.id,
+            name: t.name,
+            to: t.to?.name || 'Unknown status'
+          }));
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Available transitions for ${issueKey}:\n\n${transitionInfo.map(t => `• **${t.name}** (ID: ${t.id}) → ${t.to}`).join('\n')}\n\nUse the transition ID with jira_transition_issue_interactive for smart field handling.`
-            }
-          ]
-        };
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Available transitions for ${issueKey}:\n\n${transitionInfo.map(t => `• **${t.name}** (ID: ${t.id}) → ${t.to}`).join('\n')}\n\nUse the transition ID with jira_transition_issue_interactive for smart field handling.`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get transitions for Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'jira_transition_issue': {
@@ -895,28 +1038,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Bitbucket Tools
       case 'bitbucket_get_repositories': {
         const { query, limit } = args as { query?: string; limit?: number };
-        const repos = await bitbucketService.getRepositories({ query, limit });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(repos, null, 2)
-            }
-          ]
-        };
+        try {
+          const repos = await bitbucketService.getRepositories({ query, limit });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(repos, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Bitbucket repositories\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Query: ${query || 'none'}\n- Limit: ${limit || 10}\n\n**Tip:** Check your Bitbucket permissions and API access.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'bitbucket_get_repository': {
         const { repoName } = args as { repoName: string };
-        const repo = await bitbucketService.getRepository(repoName);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(repo, null, 2)
-            }
-          ]
-        };
+        try {
+          const repo = await bitbucketService.getRepository(repoName);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(repo, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get Bitbucket repository\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Repository: ${repoName}\n\n**Tip:** Check if the repository exists and you have access to it.`
+              }
+            ],
+            isError: true
+          };
+        }
       }
 
       case 'bitbucket_create_repository': {
