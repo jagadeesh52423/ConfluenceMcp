@@ -1,11 +1,11 @@
-import { AtlassianClient } from '../atlassian-client.js';
+import { ConfluenceClient } from '../confluence-client.js';
 import { ConfluencePage, SearchOptions } from '../types.js';
 
 export class ConfluenceService {
-  private client: AtlassianClient;
+  private client: ConfluenceClient;
 
   constructor() {
-    this.client = new AtlassianClient();
+    this.client = new ConfluenceClient();
   }
 
   async searchPages(options: SearchOptions = {}): Promise<ConfluencePage[]> {

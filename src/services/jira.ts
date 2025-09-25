@@ -1,11 +1,11 @@
-import { AtlassianClient } from '../atlassian-client.js';
+import { JiraClient } from '../jira-client.js';
 import { JiraIssue, SearchOptions } from '../types.js';
 
 export class JiraService {
-  private client: AtlassianClient;
+  private client: JiraClient;
 
   constructor() {
-    this.client = new AtlassianClient();
+    this.client = new JiraClient();
   }
 
   async searchIssues(options: SearchOptions = {}): Promise<JiraIssue[]> {

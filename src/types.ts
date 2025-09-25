@@ -1,3 +1,18 @@
+export interface ConfluenceConfig {
+  domain: string;
+  email: string;
+  apiToken: string;
+}
+
+export interface JiraConfig {
+  domain: string;
+  email: string;
+  apiToken: string;
+  clientId?: string;
+  clientSecret?: string;
+}
+
+// Legacy interface for backward compatibility
 export interface AtlassianConfig {
   domain: string;
   email: string;
