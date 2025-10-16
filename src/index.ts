@@ -185,7 +185,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'jira_create_issue',
-        description: 'Create a new Jira issue',
+        description: 'Create a new Jira issue with support for custom fields including due dates',
         inputSchema: {
           type: 'object',
           properties: {
@@ -205,6 +205,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: 'string',
               description: 'Issue type (default: Task)',
               default: 'Task'
+            },
+            duedate: {
+              type: 'string',
+              description: 'Due date in YYYY-MM-DD format (e.g., 2024-12-31)'
+            },
+            priority: {
+              type: 'string',
+              description: 'Priority name (e.g., High, Medium, Low)'
+            },
+            labels: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of label strings'
+            },
+            components: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Array of component names'
+            },
+            assignee: {
+              type: 'string',
+              description: 'Account ID of the assignee'
+            },
+            customFields: {
+              type: 'object',
+              description: 'Additional custom fields as key-value pairs'
             }
           },
           required: ['projectKey', 'summary', 'description']
@@ -252,6 +278,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ['issueKey', 'comment']
+        }
+      },
+      {
+        name: 'jira_get_comments',
+        description: 'Get all comments for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get comments for'
+            }
+          },
+          required: ['issueKey']
         }
       },
       {
@@ -760,14 +800,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'jira_create_issue': {
-        const { projectKey, summary, description, issueType } = args as {
+        const {
+          projectKey,
+          summary,
+          description,
+          issueType,
+          duedate,
+          priority,
+          labels,
+          components,
+          assignee,
+          customFields
+        } = args as {
           projectKey: string;
           summary: string;
           description: string;
           issueType?: string;
+          duedate?: string;
+          priority?: string;
+          labels?: string[];
+          components?: string[];
+          assignee?: string;
+          customFields?: Record<string, any>;
         };
         try {
-          const issue = await jiraService.createIssue(projectKey, summary, description, issueType);
+          const additionalFields = {
+            duedate,
+            priority,
+            labels,
+            components,
+            assignee,
+            customFields
+          };
+          const issue = await jiraService.createIssue(projectKey, summary, description, issueType, additionalFields);
           return {
             content: [
               {
@@ -782,7 +847,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: 'text',
-                text: `❌ Failed to create Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Project: ${projectKey}\n- Summary: ${summary}\n- Issue Type: ${issueType || 'Task'}\n\n**Tip:** Check if all required fields are provided and project exists.`
+                text: `❌ Failed to create Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Project: ${projectKey}\n- Summary: ${summary}\n- Issue Type: ${issueType || 'Task'}\n- Due Date: ${duedate || 'none'}\n- Priority: ${priority || 'none'}\n- Labels: ${labels?.join(', ') || 'none'}\n- Components: ${components?.join(', ') || 'none'}\n- Assignee: ${assignee || 'none'}\n\n**Tip:** Check if all required fields are provided and project exists. For custom fields, ensure field IDs are correct.`
               }
             ],
             isError: true
@@ -840,6 +905,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to add comment to Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Comment: ${comment.substring(0, 100)}...\n\n**Tip:** Check if the issue exists and you have permission to comment on it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_comments': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const comments = await jiraService.getComments(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(comments, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get comments for Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
               }
             ],
             isError: true

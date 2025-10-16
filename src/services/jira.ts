@@ -86,26 +86,67 @@ export class JiraService {
     projectKey: string,
     summary: string,
     description: string,
-    issueType: string = 'Task'
+    issueType: string = 'Task',
+    additionalFields?: {
+      duedate?: string;
+      priority?: string;
+      labels?: string[];
+      components?: string[];
+      assignee?: string;
+      customFields?: Record<string, any>;
+    }
   ): Promise<JiraIssue> {
-    const data = {
-      fields: {
-        project: { key: projectKey },
-        summary,
-        description: {
-          type: 'doc',
-          version: 1,
+    const fields: any = {
+      project: { key: projectKey },
+      summary,
+      description: {
+        type: 'doc',
+        version: 1,
+        content: [{
+          type: 'paragraph',
           content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: description
-            }]
+            type: 'text',
+            text: description
           }]
-        },
-        issuetype: { name: issueType }
-      }
+        }]
+      },
+      issuetype: { name: issueType }
     };
+
+    // Add optional fields if provided
+    if (additionalFields) {
+      // Due date (format: YYYY-MM-DD)
+      if (additionalFields.duedate) {
+        fields.duedate = additionalFields.duedate;
+      }
+
+      // Priority (by name)
+      if (additionalFields.priority) {
+        fields.priority = { name: additionalFields.priority };
+      }
+
+      // Labels (array of strings)
+      if (additionalFields.labels && additionalFields.labels.length > 0) {
+        fields.labels = additionalFields.labels;
+      }
+
+      // Components (by name)
+      if (additionalFields.components && additionalFields.components.length > 0) {
+        fields.components = additionalFields.components.map(name => ({ name }));
+      }
+
+      // Assignee (by account ID)
+      if (additionalFields.assignee) {
+        fields.assignee = { accountId: additionalFields.assignee };
+      }
+
+      // Custom fields (merge directly into fields object)
+      if (additionalFields.customFields) {
+        Object.assign(fields, additionalFields.customFields);
+      }
+    }
+
+    const data = { fields };
 
     const response = await this.client.post<any>('/rest/api/3/issue', data);
     return this.getIssue(response.key);
@@ -204,6 +245,43 @@ export class JiraService {
     };
 
     await this.client.post(`/rest/api/3/issue/${issueKey}/comment`, data);
+  }
+
+  async getComments(issueKey: string): Promise<any[]> {
+    const response = await this.client.get<any>(`/rest/api/3/issue/${issueKey}/comment`);
+
+    return response.comments.map((comment: any) => ({
+      id: comment.id,
+      author: comment.author?.displayName || 'Unknown',
+      authorAccountId: comment.author?.accountId,
+      body: this.extractCommentText(comment.body),
+      created: comment.created,
+      updated: comment.updated,
+      updateAuthor: comment.updateAuthor?.displayName
+    }));
+  }
+
+  private extractCommentText(body: any): string {
+    if (!body || !body.content) return '';
+
+    let text = '';
+    const extractFromContent = (content: any[]): void => {
+      for (const item of content) {
+        if (item.type === 'text' && item.text) {
+          text += item.text;
+        } else if (item.type === 'hardBreak') {
+          text += '\n';
+        } else if (item.content) {
+          extractFromContent(item.content);
+        }
+        if (item.type === 'paragraph') {
+          text += '\n';
+        }
+      }
+    };
+
+    extractFromContent(body.content);
+    return text.trim();
   }
 
   async getProjects(): Promise<any[]> {
