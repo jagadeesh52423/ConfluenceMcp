@@ -465,6 +465,91 @@ export class JiraService {
     await this.client.delete(`/rest/api/3/issue/${issueKey}/worklog/${worklogId}`);
   }
 
+  // Watchers Methods
+
+  async getWatchers(issueKey: string): Promise<any> {
+    const response = await this.client.get<any>(`/rest/api/3/issue/${issueKey}/watchers`);
+
+    return {
+      watchCount: response.watchCount,
+      isWatching: response.isWatching,
+      watchers: response.watchers?.map((watcher: any) => ({
+        accountId: watcher.accountId,
+        displayName: watcher.displayName,
+        emailAddress: watcher.emailAddress,
+        active: watcher.active
+      })) || []
+    };
+  }
+
+  async addWatcher(issueKey: string, accountId: string): Promise<void> {
+    await this.client.post(`/rest/api/3/issue/${issueKey}/watchers`, JSON.stringify(accountId));
+  }
+
+  async removeWatcher(issueKey: string, accountId: string): Promise<void> {
+    await this.client.delete(`/rest/api/3/issue/${issueKey}/watchers?accountId=${accountId}`);
+  }
+
+  // Sub-task Methods
+
+  async getSubTasks(issueKey: string): Promise<any[]> {
+    const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, {
+      fields: ['subtasks']
+    });
+
+    return issue.fields.subtasks?.map((subtask: any) => ({
+      id: subtask.id,
+      key: subtask.key,
+      summary: subtask.fields?.summary,
+      status: subtask.fields?.status?.name,
+      assignee: subtask.fields?.assignee?.displayName
+    })) || [];
+  }
+
+  async createSubTask(parentKey: string, summary: string, description: string): Promise<any> {
+    const data = {
+      fields: {
+        project: { key: parentKey.split('-')[0] },
+        parent: { key: parentKey },
+        summary,
+        description: {
+          type: 'doc',
+          version: 1,
+          content: [{
+            type: 'paragraph',
+            content: [{
+              type: 'text',
+              text: description
+            }]
+          }]
+        },
+        issuetype: { name: 'Sub-task' }
+      }
+    };
+
+    const response = await this.client.post<any>('/rest/api/3/issue', data);
+    return this.getIssue(response.key);
+  }
+
+  // Issue History Methods
+
+  async getIssueHistory(issueKey: string): Promise<any[]> {
+    const response = await this.client.get<any>(`/rest/api/3/issue/${issueKey}/changelog`);
+
+    return response.values?.map((change: any) => ({
+      id: change.id,
+      author: change.author?.displayName || 'Unknown',
+      authorAccountId: change.author?.accountId,
+      created: change.created,
+      items: change.items?.map((item: any) => ({
+        field: item.field,
+        fieldtype: item.fieldtype,
+        from: item.fromString,
+        to: item.toString
+      }))
+    })) || [];
+  }
+
   // Smart Field Handling Methods
 
   private async handleTransitionError(issueKey: string, transitionId: string, error: any): Promise<JiraRequiredField[]> {

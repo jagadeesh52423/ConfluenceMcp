@@ -552,6 +552,106 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['issueKey', 'worklogId']
         }
       },
+      {
+        name: 'jira_get_watchers',
+        description: 'Get all watchers for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get watchers for'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_add_watcher',
+        description: 'Add a watcher to a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key'
+            },
+            accountId: {
+              type: 'string',
+              description: 'Account ID of the user to add as watcher'
+            }
+          },
+          required: ['issueKey', 'accountId']
+        }
+      },
+      {
+        name: 'jira_remove_watcher',
+        description: 'Remove a watcher from a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key'
+            },
+            accountId: {
+              type: 'string',
+              description: 'Account ID of the user to remove as watcher'
+            }
+          },
+          required: ['issueKey', 'accountId']
+        }
+      },
+      {
+        name: 'jira_get_subtasks',
+        description: 'Get all sub-tasks for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The parent issue key'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_create_subtask',
+        description: 'Create a sub-task under a parent Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            parentKey: {
+              type: 'string',
+              description: 'The parent issue key'
+            },
+            summary: {
+              type: 'string',
+              description: 'Sub-task summary/title'
+            },
+            description: {
+              type: 'string',
+              description: 'Sub-task description'
+            }
+          },
+          required: ['parentKey', 'summary', 'description']
+        }
+      },
+      {
+        name: 'jira_get_issue_history',
+        description: 'Get complete change history for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get history for'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
 
       // Bitbucket Tools
       {
@@ -1596,6 +1696,162 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to delete work log\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Worklog ID: ${worklogId}\n\n**Tip:** Check if the work log exists and you have permission to delete it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_watchers': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const watchers = await jiraService.getWatchers(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(watchers, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get watchers\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_add_watcher': {
+        const { issueKey, accountId } = args as { issueKey: string; accountId: string };
+        try {
+          await jiraService.addWatcher(issueKey, accountId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Watcher added to ${issueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add watcher\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Account ID: ${accountId}\n\n**Tip:** Check if the issue and user exist, and you have permission to add watchers.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_remove_watcher': {
+        const { issueKey, accountId } = args as { issueKey: string; accountId: string };
+        try {
+          await jiraService.removeWatcher(issueKey, accountId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Watcher removed from ${issueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to remove watcher\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Account ID: ${accountId}\n\n**Tip:** Check if the issue exists and you have permission to remove watchers.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_subtasks': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const subtasks = await jiraService.getSubTasks(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(subtasks, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get sub-tasks\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_create_subtask': {
+        const { parentKey, summary, description } = args as { parentKey: string; summary: string; description: string };
+        try {
+          const subtask = await jiraService.createSubTask(parentKey, summary, description);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Sub-task created: ${subtask.key}\n\n${JSON.stringify(subtask, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to create sub-task\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Parent Key: ${parentKey}\n- Summary: ${summary}\n\n**Tip:** Check if the parent issue exists, the project allows sub-tasks, and you have permission to create issues.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_issue_history': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const history = await jiraService.getIssueHistory(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(history, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get issue history\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
               }
             ],
             isError: true
