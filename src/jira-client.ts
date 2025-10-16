@@ -44,4 +44,14 @@ export class JiraClient {
     const response: AxiosResponse<T> = await this.client.delete(endpoint);
     return response.data;
   }
+
+  async postFormData<T>(endpoint: string, formData: any): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.post(endpoint, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        'X-Atlassian-Token': 'no-check',
+      },
+    });
+    return response.data;
+  }
 }

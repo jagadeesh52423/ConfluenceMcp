@@ -309,6 +309,40 @@ export class JiraService {
     return response;
   }
 
+  // Attachment Methods
+
+  async getAttachments(issueKey: string): Promise<any[]> {
+    const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, {
+      fields: ['attachment']
+    });
+
+    return issue.fields.attachment?.map((att: any) => ({
+      id: att.id,
+      filename: att.filename,
+      author: att.author?.displayName || 'Unknown',
+      created: att.created,
+      size: att.size,
+      mimeType: att.mimeType,
+      content: att.content
+    })) || [];
+  }
+
+  async addAttachment(issueKey: string, filename: string, fileContent: string): Promise<any> {
+    // Note: fileContent should be base64 encoded
+    const FormData = (await import('form-data')).default;
+    const form = new FormData();
+
+    const buffer = Buffer.from(fileContent, 'base64');
+    form.append('file', buffer, { filename });
+
+    const response = await this.client.postFormData(`/rest/api/3/issue/${issueKey}/attachments`, form);
+    return response;
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await this.client.delete(`/rest/api/3/attachment/${attachmentId}`);
+  }
+
   // Smart Field Handling Methods
 
   private async handleTransitionError(issueKey: string, transitionId: string, error: any): Promise<JiraRequiredField[]> {

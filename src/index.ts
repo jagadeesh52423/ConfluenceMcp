@@ -360,6 +360,56 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['issueKey', 'transitionId']
         }
       },
+      {
+        name: 'jira_get_attachments',
+        description: 'Get all attachments for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get attachments for'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_add_attachment',
+        description: 'Add an attachment to a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to attach file to'
+            },
+            filename: {
+              type: 'string',
+              description: 'The filename for the attachment'
+            },
+            fileContent: {
+              type: 'string',
+              description: 'Base64 encoded file content'
+            }
+          },
+          required: ['issueKey', 'filename', 'fileContent']
+        }
+      },
+      {
+        name: 'jira_delete_attachment',
+        description: 'Delete an attachment from a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            attachmentId: {
+              type: 'string',
+              description: 'The attachment ID to delete'
+            }
+          },
+          required: ['attachmentId']
+        }
+      },
 
       // Bitbucket Tools
       {
@@ -1119,6 +1169,84 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to transition Jira issue ${issueKey} (interactive mode)\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Transition ID: ${transitionId}\n- Field Values: ${JSON.stringify(fieldValues || {}, null, 2)}\n\n**Tip:** Check if the transition ID is valid for this issue and you have permission to transition it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_attachments': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const attachments = await jiraService.getAttachments(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(attachments, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get attachments for Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_add_attachment': {
+        const { issueKey, filename, fileContent } = args as { issueKey: string; filename: string; fileContent: string };
+        try {
+          const result = await jiraService.addAttachment(issueKey, filename, fileContent);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Attachment "${filename}" added to issue ${issueKey}\n\n${JSON.stringify(result, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add attachment to Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Filename: ${filename}\n\n**Tip:** Check if the issue exists, you have permission to attach files, and the file content is properly base64 encoded.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_delete_attachment': {
+        const { attachmentId } = args as { attachmentId: string };
+        try {
+          await jiraService.deleteAttachment(attachmentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Attachment ${attachmentId} deleted successfully`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete attachment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Attachment ID: ${attachmentId}\n\n**Tip:** Check if the attachment exists and you have permission to delete it.`
               }
             ],
             isError: true
