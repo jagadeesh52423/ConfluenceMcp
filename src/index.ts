@@ -468,6 +468,90 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {}
         }
       },
+      {
+        name: 'jira_get_worklogs',
+        description: 'Get all work logs (time tracking entries) for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get work logs for'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_add_worklog',
+        description: 'Add a work log (time spent) to a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to log work on'
+            },
+            timeSpentSeconds: {
+              type: 'number',
+              description: 'Time spent in seconds (e.g., 3600 for 1 hour)'
+            },
+            comment: {
+              type: 'string',
+              description: 'Optional comment describing the work done'
+            },
+            started: {
+              type: 'string',
+              description: 'Optional start date/time in ISO 8601 format (e.g., 2024-01-15T14:30:00.000+0000)'
+            }
+          },
+          required: ['issueKey', 'timeSpentSeconds']
+        }
+      },
+      {
+        name: 'jira_update_worklog',
+        description: 'Update an existing work log entry',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key'
+            },
+            worklogId: {
+              type: 'string',
+              description: 'The work log ID to update'
+            },
+            timeSpentSeconds: {
+              type: 'number',
+              description: 'Updated time spent in seconds'
+            },
+            comment: {
+              type: 'string',
+              description: 'Updated comment'
+            }
+          },
+          required: ['issueKey', 'worklogId']
+        }
+      },
+      {
+        name: 'jira_delete_worklog',
+        description: 'Delete a work log entry from a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key'
+            },
+            worklogId: {
+              type: 'string',
+              description: 'The work log ID to delete'
+            }
+          },
+          required: ['issueKey', 'worklogId']
+        }
+      },
 
       // Bitbucket Tools
       {
@@ -1408,6 +1492,110 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to get issue link types\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Tip:** Check your Jira permissions and API access.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_worklogs': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const worklogs = await jiraService.getWorkLogs(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(worklogs, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get work logs\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_add_worklog': {
+        const { issueKey, timeSpentSeconds, comment, started } = args as { issueKey: string; timeSpentSeconds: number; comment?: string; started?: string };
+        try {
+          const result = await jiraService.addWorkLog(issueKey, timeSpentSeconds, comment, started);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Work log added to ${issueKey}\nTime spent: ${Math.floor(timeSpentSeconds / 3600)}h ${Math.floor((timeSpentSeconds % 3600) / 60)}m\n\n${JSON.stringify(result, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add work log\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Time Spent: ${timeSpentSeconds}s\n- Comment: ${comment || 'none'}\n\n**Tip:** Check if the issue exists and you have permission to log work.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_update_worklog': {
+        const { issueKey, worklogId, timeSpentSeconds, comment } = args as { issueKey: string; worklogId: string; timeSpentSeconds?: number; comment?: string };
+        try {
+          const result = await jiraService.updateWorkLog(issueKey, worklogId, timeSpentSeconds, comment);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Work log ${worklogId} updated\n\n${JSON.stringify(result, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to update work log\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Worklog ID: ${worklogId}\n\n**Tip:** Check if the work log exists and you have permission to update it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_delete_worklog': {
+        const { issueKey, worklogId } = args as { issueKey: string; worklogId: string };
+        try {
+          await jiraService.deleteWorkLog(issueKey, worklogId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Work log ${worklogId} deleted from ${issueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete work log\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Worklog ID: ${worklogId}\n\n**Tip:** Check if the work log exists and you have permission to delete it.`
               }
             ],
             isError: true
