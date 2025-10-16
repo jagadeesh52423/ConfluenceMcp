@@ -410,6 +410,64 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['attachmentId']
         }
       },
+      {
+        name: 'jira_get_issue_links',
+        description: 'Get all issue links for a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key to get links for'
+            }
+          },
+          required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_create_issue_link',
+        description: 'Create a link between two Jira issues',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            inwardIssueKey: {
+              type: 'string',
+              description: 'The inward issue key'
+            },
+            outwardIssueKey: {
+              type: 'string',
+              description: 'The outward issue key'
+            },
+            linkType: {
+              type: 'string',
+              description: 'Link type name (e.g., "Blocks", "Relates", "Duplicates")'
+            }
+          },
+          required: ['inwardIssueKey', 'outwardIssueKey', 'linkType']
+        }
+      },
+      {
+        name: 'jira_delete_issue_link',
+        description: 'Delete a link between Jira issues',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            linkId: {
+              type: 'string',
+              description: 'The link ID to delete'
+            }
+          },
+          required: ['linkId']
+        }
+      },
+      {
+        name: 'jira_get_link_types',
+        description: 'Get all available issue link types in Jira',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
 
       // Bitbucket Tools
       {
@@ -1247,6 +1305,109 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to delete attachment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Attachment ID: ${attachmentId}\n\n**Tip:** Check if the attachment exists and you have permission to delete it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_issue_links': {
+        const { issueKey } = args as { issueKey: string };
+        try {
+          const links = await jiraService.getIssueLinks(issueKey);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(links, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get issue links\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_create_issue_link': {
+        const { inwardIssueKey, outwardIssueKey, linkType } = args as { inwardIssueKey: string; outwardIssueKey: string; linkType: string };
+        try {
+          await jiraService.createIssueLink(inwardIssueKey, outwardIssueKey, linkType);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Link created: ${inwardIssueKey} ${linkType} ${outwardIssueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to create issue link\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Inward Issue: ${inwardIssueKey}\n- Outward Issue: ${outwardIssueKey}\n- Link Type: ${linkType}\n\n**Tip:** Check if both issues exist, the link type is valid, and you have permission to link issues. Use jira_get_link_types to see available link types.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_delete_issue_link': {
+        const { linkId } = args as { linkId: string };
+        try {
+          await jiraService.deleteIssueLink(linkId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Issue link ${linkId} deleted successfully`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete issue link\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Link ID: ${linkId}\n\n**Tip:** Check if the link exists and you have permission to delete it. Use jira_get_issue_links to get link IDs.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_get_link_types': {
+        try {
+          const linkTypes = await jiraService.getIssueLinkTypes();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(linkTypes, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get issue link types\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Tip:** Check your Jira permissions and API access.`
               }
             ],
             isError: true

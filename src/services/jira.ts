@@ -343,6 +343,54 @@ export class JiraService {
     await this.client.delete(`/rest/api/3/attachment/${attachmentId}`);
   }
 
+  // Issue Linking Methods
+
+  async getIssueLinks(issueKey: string): Promise<any[]> {
+    const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, {
+      fields: ['issuelinks']
+    });
+
+    return issue.fields.issuelinks?.map((link: any) => ({
+      id: link.id,
+      type: link.type?.name || 'Unknown',
+      inward: link.inwardIssue ? {
+        key: link.inwardIssue.key,
+        summary: link.inwardIssue.fields?.summary,
+        status: link.inwardIssue.fields?.status?.name
+      } : null,
+      outward: link.outwardIssue ? {
+        key: link.outwardIssue.key,
+        summary: link.outwardIssue.fields?.summary,
+        status: link.outwardIssue.fields?.status?.name
+      } : null
+    })) || [];
+  }
+
+  async createIssueLink(inwardIssueKey: string, outwardIssueKey: string, linkType: string): Promise<any> {
+    const data = {
+      type: { name: linkType },
+      inwardIssue: { key: inwardIssueKey },
+      outwardIssue: { key: outwardIssueKey }
+    };
+
+    const response = await this.client.post<any>('/rest/api/3/issueLink', data);
+    return response;
+  }
+
+  async deleteIssueLink(linkId: string): Promise<void> {
+    await this.client.delete(`/rest/api/3/issueLink/${linkId}`);
+  }
+
+  async getIssueLinkTypes(): Promise<any[]> {
+    const response = await this.client.get<any>('/rest/api/3/issueLinkType');
+    return response.issueLinkTypes.map((type: any) => ({
+      id: type.id,
+      name: type.name,
+      inward: type.inward,
+      outward: type.outward
+    }));
+  }
+
   // Smart Field Handling Methods
 
   private async handleTransitionError(issueKey: string, transitionId: string, error: any): Promise<JiraRequiredField[]> {
