@@ -55,7 +55,7 @@ export class JiraService {
       id: issue.id,
       key: issue.key,
       summary: issue.fields.summary || '',
-      description: issue.fields.description?.content?.[0]?.content?.[0]?.text || '',
+      description: this.extractTextFromADF(issue.fields.description),
       status: issue.fields.status?.name || '',
       assignee: issue.fields.assignee?.displayName || '',
       created: issue.fields.created || '',
@@ -74,7 +74,7 @@ export class JiraService {
       id: issue.id,
       key: issue.key,
       summary: issue.fields.summary || '',
-      description: issue.fields.description?.content?.[0]?.content?.[0]?.text || '',
+      description: this.extractTextFromADF(issue.fields.description),
       status: issue.fields.status?.name || '',
       assignee: issue.fields.assignee?.displayName || '',
       created: issue.fields.created || '',
@@ -254,14 +254,14 @@ export class JiraService {
       id: comment.id,
       author: comment.author?.displayName || 'Unknown',
       authorAccountId: comment.author?.accountId,
-      body: this.extractCommentText(comment.body),
+      body: this.extractTextFromADF(comment.body),
       created: comment.created,
       updated: comment.updated,
       updateAuthor: comment.updateAuthor?.displayName
     }));
   }
 
-  private extractCommentText(body: any): string {
+  private extractTextFromADF(body: any): string {
     if (!body || !body.content) return '';
 
     let text = '';
