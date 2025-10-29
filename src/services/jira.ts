@@ -930,10 +930,20 @@ export class JiraService {
           const tableRows: string[][] = [];
           let currentLine = i;
 
-          // Collect all consecutive table rows
+          // Collect all consecutive table rows (skip empty lines within table)
           while (currentLine < lines.length) {
             const tableLine = lines[currentLine].trim();
-            if (!tableLine.includes('|') || tableLine === '') break;
+
+            // Skip empty lines but continue looking for table rows
+            if (tableLine === '') {
+              currentLine++;
+              continue;
+            }
+
+            // Stop if line doesn't contain pipes (end of table)
+            if (!tableLine.includes('|')) {
+              break;
+            }
 
             // Skip separator lines (|-----|-----|)
             if (tableLine.match(/^\|?[\s\-:|]+\|?$/)) {
@@ -974,13 +984,12 @@ export class JiraService {
               tableLines.push('| ' + tableRows[0].join(' | ') + ' |');
             }
 
-            // Add separator if we had one, or create a simple one
-            if (hasSeparator) {
-              // Use the original separator format from your working examples
-              tableLines.push('|-|-|');
-            } else if (tableRows.length > 1) {
-              // Create separator for header/data distinction
-              tableLines.push('|-|-|');
+            // Add separator based on number of columns
+            if (hasSeparator || tableRows.length > 1) {
+              // Create separator with correct number of columns
+              const numColumns = tableRows[0].length;
+              const separator = '|' + '-|'.repeat(numColumns);
+              tableLines.push(separator);
             }
 
             // Add data rows (skip first row which is header)
@@ -990,13 +999,55 @@ export class JiraService {
 
             const markdownTable = tableLines.join('\n');
 
-            // Add as paragraph containing the markdown table
+            // Create proper ADF table structure
+            const tableContent: any[] = [];
+
+            // Header row
+            if (tableRows.length > 0) {
+              const headerCells = tableRows[0].map(cell => ({
+                type: 'tableHeader',
+                content: [{
+                  type: 'paragraph',
+                  content: [{
+                    type: 'text',
+                    text: cell
+                  }]
+                }]
+              }));
+
+              tableContent.push({
+                type: 'tableRow',
+                content: headerCells
+              });
+            }
+
+            // Data rows
+            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
+              const dataCells = tableRows[rowIdx].map(cell => ({
+                type: 'tableCell',
+                content: [{
+                  type: 'paragraph',
+                  content: [{
+                    type: 'text',
+                    text: cell
+                  }]
+                }]
+              }));
+
+              tableContent.push({
+                type: 'tableRow',
+                content: dataCells
+              });
+            }
+
+            // Add as proper ADF table
             content.push({
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: markdownTable
-              }]
+              type: 'table',
+              attrs: {
+                isNumberColumnEnabled: false,
+                layout: 'default'
+              },
+              content: tableContent
             });
 
             // Skip the lines we've processed
