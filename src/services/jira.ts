@@ -154,8 +154,8 @@ export class JiraService {
     }
 
     if (fields.description) {
-      // Try sending as plain text with wiki markup instead of ADF
-      updateFields.description = this.parseDescriptionToWikiMarkup(fields.description);
+      // Use proper ADF format for description updates
+      updateFields.description = this.parseDescriptionToADF(fields.description);
     }
 
     if (fields.assignee) {
@@ -771,7 +771,7 @@ export class JiraService {
 
         if (cells.length >= 2) {
           // Collect table rows
-          const tableRows: string[][] = [];
+          const allTableRows: string[][] = [];
           let currentLine = i;
 
           while (currentLine < lines.length) {
@@ -794,7 +794,7 @@ export class JiraService {
 
             const rowCells = tableLine.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
             if (rowCells.length >= 2) {
-              tableRows.push(rowCells);
+              allTableRows.push(rowCells);
             } else {
               break;
             }
@@ -802,15 +802,20 @@ export class JiraService {
           }
 
           // Convert to Confluence wiki markup
-          if (tableRows.length > 0) {
+          if (allTableRows.length > 0) {
             // Header row
-            if (tableRows.length > 0) {
-              result.push('||*' + tableRows[0].join('*||*') + '*||');
+            if (allTableRows.length > 0) {
+              result.push('||*' + allTableRows[0].join('*||*') + '*||');
+
+              // Add separator line based on number of columns
+              const numColumns = allTableRows[0].length;
+              const separator = '|' + '-|'.repeat(numColumns);
+              result.push(separator);
             }
 
             // Data rows
-            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
-              result.push('|' + tableRows[rowIdx].join('|') + '|');
+            for (let rowIdx = 1; rowIdx < allTableRows.length; rowIdx++) {
+              result.push('|' + allTableRows[rowIdx].join('|') + '|');
             }
 
             // Skip processed lines
@@ -1012,111 +1017,99 @@ export class JiraService {
           }]
         });
       }
-      // Handle markdown tables - convert to Confluence wiki markup
+      // Handle markdown tables - convert to proper ADF table structure
       else if (line.includes('|') && line.trim() !== '|') {
-        // Check if this looks like a markdown table row
         const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
 
         if (cells.length >= 2) {
-          // This looks like a table row, start collecting table data
-          const tableRows: string[][] = [];
-          let currentLine = i;
+          // Collect all table rows from current position
+          const allTableRows: string[][] = [];
 
-          // Collect all consecutive table rows (skip empty lines within table)
-          while (currentLine < lines.length) {
-            const tableLine = lines[currentLine].trim();
+          // Start from current line and collect consecutive table rows
+          let tableEndIndex = i;
+          for (let tableIdx = i; tableIdx < lines.length; tableIdx++) {
+            const tableLine = lines[tableIdx].trim();
 
-            // Skip empty lines but continue looking for table rows
+            // Skip empty lines
             if (tableLine === '') {
-              currentLine++;
+              tableEndIndex = tableIdx;
               continue;
             }
 
-            // Stop if line doesn't contain pipes (end of table)
+            // Stop if no pipes (end of table)
             if (!tableLine.includes('|')) {
+              tableEndIndex = tableIdx - 1;
               break;
             }
 
-            // Skip separator lines (|-----|-----|)
+            // Skip separator lines like |-|-|
             if (tableLine.match(/^\|?[\s\-:|]+\|?$/)) {
-              currentLine++;
+              tableEndIndex = tableIdx;
               continue;
             }
 
+            // Parse row cells
             const rowCells = tableLine.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
             if (rowCells.length >= 2) {
-              tableRows.push(rowCells);
+              allTableRows.push(rowCells);
+              tableEndIndex = tableIdx;
             } else {
-              break;
+              tableEndIndex = tableIdx - 1;
+              break; // End of table
             }
-            currentLine++;
           }
 
-          // Keep markdown table format (Jira supports it directly)
-          if (tableRows.length > 0) {
-            // Reconstruct the original markdown table format
-            const tableLines: string[] = [];
+          // Convert to proper ADF table structure if we have table rows
+          if (allTableRows.length > 0) {
+            // Create proper ADF table structure
+            const tableRows: any[] = [];
 
-            // First, find if we have separator lines in the original
-            let hasSeparator = false;
-            let separatorIndex = -1;
+            // Header row (first row)
+            if (allTableRows.length > 0) {
+              const headerCells = allTableRows[0].map(cellText => ({
+                type: 'tableHeader',
+                attrs: {},
+                content: [{
+                  type: 'paragraph',
+                  content: this.parseInlineFormatting(cellText)
+                }]
+              }));
 
-            // Check the original lines for separator
-            for (let checkIdx = i; checkIdx < currentLine; checkIdx++) {
-              const checkLine = lines[checkIdx].trim();
-              if (checkLine.match(/^\|?[\s\-:|]+\|?$/)) {
-                hasSeparator = true;
-                separatorIndex = checkIdx - i;
-                break;
-              }
+              tableRows.push({
+                type: 'tableRow',
+                content: headerCells
+              });
             }
 
-            // Add header row
-            if (tableRows.length > 0) {
-              tableLines.push('| ' + tableRows[0].join(' | ') + ' |');
+            // Data rows (remaining rows)
+            for (let rowIdx = 1; rowIdx < allTableRows.length; rowIdx++) {
+              const dataCells = allTableRows[rowIdx].map(cellText => ({
+                type: 'tableCell',
+                attrs: {},
+                content: [{
+                  type: 'paragraph',
+                  content: this.parseInlineFormatting(cellText)
+                }]
+              }));
+
+              tableRows.push({
+                type: 'tableRow',
+                content: dataCells
+              });
             }
 
-            // Add separator based on number of columns
-            if (hasSeparator || tableRows.length > 1) {
-              // Create separator with correct number of columns
-              const numColumns = tableRows[0].length;
-              const separator = '|' + '-|'.repeat(numColumns);
-              tableLines.push(separator);
-            }
-
-            // Add data rows (skip first row which is header)
-            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
-              tableLines.push('| ' + tableRows[rowIdx].join(' | ') + ' |');
-            }
-
-            const markdownTable = tableLines.join('\n');
-
-            // Use Confluence wiki markup format (as shown in working examples)
-            const wikiTable: string[] = [];
-
-            // Header row: ||*Header1*||*Header2*||*Header3*||
-            if (tableRows.length > 0) {
-              wikiTable.push('||*' + tableRows[0].join('*||*') + '*||');
-            }
-
-            // Data rows: |Cell1|Cell2|Cell3|
-            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
-              wikiTable.push('|' + tableRows[rowIdx].join('|') + '|');
-            }
-
-            const confluenceTable = wikiTable.join('\n');
-
-            // Add as paragraph with wiki markup
+            // Create the complete table structure
             content.push({
-              type: 'paragraph',
-              content: [{
-                type: 'text',
-                text: confluenceTable
-              }]
+              type: 'table',
+              attrs: {
+                isNumberColumnEnabled: false,
+                layout: 'default'
+              },
+              content: tableRows
             });
 
             // Skip the lines we've processed
-            i = currentLine - 1; // -1 because the for loop will increment
+            i = tableEndIndex; // Skip the table rows we just processed
             continue;
           }
         }
