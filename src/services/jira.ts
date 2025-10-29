@@ -154,7 +154,8 @@ export class JiraService {
     }
 
     if (fields.description) {
-      updateFields.description = this.parseDescriptionToADF(fields.description);
+      // Try sending as plain text with wiki markup instead of ADF
+      updateFields.description = this.parseDescriptionToWikiMarkup(fields.description);
     }
 
     if (fields.assignee) {
@@ -741,6 +742,97 @@ export class JiraService {
     }
 
     return result;
+  }
+
+  // Convert description to wiki markup text format
+  private parseDescriptionToWikiMarkup(description: string): string {
+    const lines = description.split('\n');
+    const result: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      if (line === '') {
+        result.push('');
+        continue;
+      }
+
+      // Handle markdown headers
+      if (line.startsWith('###')) {
+        result.push('h3. ' + line.substring(3).trim());
+      } else if (line.startsWith('##')) {
+        result.push('h2. ' + line.substring(2).trim());
+      } else if (line.startsWith('#')) {
+        result.push('h1. ' + line.substring(1).trim());
+      }
+      // Handle markdown tables
+      else if (line.includes('|') && line.trim() !== '|') {
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+
+        if (cells.length >= 2) {
+          // Collect table rows
+          const tableRows: string[][] = [];
+          let currentLine = i;
+
+          while (currentLine < lines.length) {
+            const tableLine = lines[currentLine].trim();
+
+            if (tableLine === '') {
+              currentLine++;
+              continue;
+            }
+
+            if (!tableLine.includes('|')) {
+              break;
+            }
+
+            // Skip separator lines
+            if (tableLine.match(/^\|?[\s\-:|]+\|?$/)) {
+              currentLine++;
+              continue;
+            }
+
+            const rowCells = tableLine.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+            if (rowCells.length >= 2) {
+              tableRows.push(rowCells);
+            } else {
+              break;
+            }
+            currentLine++;
+          }
+
+          // Convert to Confluence wiki markup
+          if (tableRows.length > 0) {
+            // Header row
+            if (tableRows.length > 0) {
+              result.push('||*' + tableRows[0].join('*||*') + '*||');
+            }
+
+            // Data rows
+            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
+              result.push('|' + tableRows[rowIdx].join('|') + '|');
+            }
+
+            // Skip processed lines
+            i = currentLine - 1;
+            continue;
+          }
+        }
+
+        // If not a valid table, treat as regular text
+        result.push(line);
+      }
+      // Handle bullet points
+      else if (line.startsWith('- ') || line.startsWith('* ')) {
+        result.push('* ' + line.substring(2).trim());
+      }
+      // Regular text
+      else {
+        result.push(line);
+      }
+    }
+
+    return result.join('\n');
   }
 
   // Enhanced description parser that converts text to proper ADF format
