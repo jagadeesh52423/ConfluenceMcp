@@ -950,29 +950,52 @@ export class JiraService {
             currentLine++;
           }
 
-          // Convert to Confluence wiki markup table
+          // Keep markdown table format (Jira supports it directly)
           if (tableRows.length > 0) {
-            const [headerRow, ...dataRows] = tableRows;
-
-            // Create Confluence table markup with proper line breaks
+            // Reconstruct the original markdown table format
             const tableLines: string[] = [];
 
-            // Header row (with bold formatting): ||*Header1*||*Header2*||
-            tableLines.push('||*' + headerRow.join('*||*') + '*||');
+            // First, find if we have separator lines in the original
+            let hasSeparator = false;
+            let separatorIndex = -1;
 
-            // Data rows: |Cell1|Cell2|
-            dataRows.forEach(row => {
-              tableLines.push('|' + row.join('|') + '|');
-            });
+            // Check the original lines for separator
+            for (let checkIdx = i; checkIdx < currentLine; checkIdx++) {
+              const checkLine = lines[checkIdx].trim();
+              if (checkLine.match(/^\|?[\s\-:|]+\|?$/)) {
+                hasSeparator = true;
+                separatorIndex = checkIdx - i;
+                break;
+              }
+            }
 
-            const confluenceTable = tableLines.join('\n');
+            // Add header row
+            if (tableRows.length > 0) {
+              tableLines.push('| ' + tableRows[0].join(' | ') + ' |');
+            }
 
-            // Add as paragraph containing the confluence markup
+            // Add separator if we had one, or create a simple one
+            if (hasSeparator) {
+              // Use the original separator format from your working examples
+              tableLines.push('|-|-|');
+            } else if (tableRows.length > 1) {
+              // Create separator for header/data distinction
+              tableLines.push('|-|-|');
+            }
+
+            // Add data rows (skip first row which is header)
+            for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
+              tableLines.push('| ' + tableRows[rowIdx].join(' | ') + ' |');
+            }
+
+            const markdownTable = tableLines.join('\n');
+
+            // Add as paragraph containing the markdown table
             content.push({
               type: 'paragraph',
               content: [{
                 type: 'text',
-                text: confluenceTable
+                text: markdownTable
               }]
             });
 
