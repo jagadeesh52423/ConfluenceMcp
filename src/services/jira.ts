@@ -999,55 +999,28 @@ export class JiraService {
 
             const markdownTable = tableLines.join('\n');
 
-            // Create proper ADF table structure
-            const tableContent: any[] = [];
+            // Use Confluence wiki markup format (as shown in working examples)
+            const wikiTable: string[] = [];
 
-            // Header row
+            // Header row: ||*Header1*||*Header2*||*Header3*||
             if (tableRows.length > 0) {
-              const headerCells = tableRows[0].map(cell => ({
-                type: 'tableHeader',
-                content: [{
-                  type: 'paragraph',
-                  content: [{
-                    type: 'text',
-                    text: cell
-                  }]
-                }]
-              }));
-
-              tableContent.push({
-                type: 'tableRow',
-                content: headerCells
-              });
+              wikiTable.push('||*' + tableRows[0].join('*||*') + '*||');
             }
 
-            // Data rows
+            // Data rows: |Cell1|Cell2|Cell3|
             for (let rowIdx = 1; rowIdx < tableRows.length; rowIdx++) {
-              const dataCells = tableRows[rowIdx].map(cell => ({
-                type: 'tableCell',
-                content: [{
-                  type: 'paragraph',
-                  content: [{
-                    type: 'text',
-                    text: cell
-                  }]
-                }]
-              }));
-
-              tableContent.push({
-                type: 'tableRow',
-                content: dataCells
-              });
+              wikiTable.push('|' + tableRows[rowIdx].join('|') + '|');
             }
 
-            // Add as proper ADF table
+            const confluenceTable = wikiTable.join('\n');
+
+            // Add as paragraph with wiki markup
             content.push({
-              type: 'table',
-              attrs: {
-                isNumberColumnEnabled: false,
-                layout: 'default'
-              },
-              content: tableContent
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: confluenceTable
+              }]
             });
 
             // Skip the lines we've processed
