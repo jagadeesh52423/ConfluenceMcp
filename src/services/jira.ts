@@ -37,19 +37,20 @@ export class JiraService {
   async searchIssues(options: SearchOptions = {}): Promise<JiraIssue[]> {
     const { query, limit = 50, startAt = 0 } = options;
 
-    let jql = 'ORDER BY created DESC';
+    // Create bounded JQL query (Jira requires bounded queries now)
+    let jql = 'created >= -90d ORDER BY created DESC';
     if (query) {
-      jql = `text ~ "${query}" ORDER BY created DESC`;
+      jql = `text ~ "${query}" AND created >= -90d ORDER BY created DESC`;
     }
 
     const params = {
       jql,
       maxResults: limit,
       startAt,
-      fields: ['summary', 'description', 'status', 'assignee', 'created', 'updated']
+      fields: 'summary,description,status,assignee,created,updated'
     };
 
-    const response = await this.client.get<any>('/rest/api/3/search', params);
+    const response = await this.client.get<any>('/rest/api/3/search/jql', params);
 
     return response.issues.map((issue: any) => ({
       id: issue.id,
@@ -99,17 +100,7 @@ export class JiraService {
     const fields: any = {
       project: { key: projectKey },
       summary,
-      description: {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: description
-          }]
-        }]
-      },
+      description: this.parseDescriptionToADF(description),
       issuetype: { name: issueType }
     };
 
@@ -163,17 +154,7 @@ export class JiraService {
     }
 
     if (fields.description) {
-      updateFields.description = {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: fields.description
-          }]
-        }]
-      };
+      updateFields.description = this.parseDescriptionToADF(fields.description);
     }
 
     if (fields.assignee) {
@@ -231,17 +212,7 @@ export class JiraService {
 
   async addComment(issueKey: string, comment: string): Promise<void> {
     const data = {
-      body: {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: comment
-          }]
-        }]
-      }
+      body: this.parseDescriptionToADF(comment)
     };
 
     await this.client.post(`/rest/api/3/issue/${issueKey}/comment`, data);
@@ -262,7 +233,17 @@ export class JiraService {
   }
 
   private extractTextFromADF(body: any): string {
-    if (!body || !body.content) return '';
+    if (!body) return '';
+
+    // If body is already a string (wiki markup), return it directly
+    if (typeof body === 'string') {
+      return this.formatWikiMarkup(body);
+    }
+
+    // If body doesn't have content property, it might be wiki markup in another format
+    if (!body.content) {
+      return this.formatWikiMarkup(String(body));
+    }
 
     let text = '';
     const extractFromContent = (content: any[]): void => {
@@ -271,17 +252,63 @@ export class JiraService {
           text += item.text;
         } else if (item.type === 'hardBreak') {
           text += '\n';
+        } else if (item.type === 'paragraph') {
+          if (item.content) {
+            extractFromContent(item.content);
+          }
+        } else if (item.type === 'heading') {
+          const level = item.attrs?.level || 1;
+          const prefix = '#'.repeat(level);
+          text += `${prefix} `;
+          if (item.content) {
+            extractFromContent(item.content);
+          }
+        } else if (item.type === 'bulletList' || item.type === 'orderedList') {
+          if (item.content) {
+            extractFromContent(item.content);
+          }
+        } else if (item.type === 'listItem') {
+          text += '- ';
+          if (item.content) {
+            extractFromContent(item.content);
+          }
+        } else if (item.type === 'codeBlock') {
+          text += '```';
+          if (item.content) {
+            extractFromContent(item.content);
+          }
+          text += '```';
         } else if (item.content) {
           extractFromContent(item.content);
-        }
-        if (item.type === 'paragraph') {
-          text += '\n';
         }
       }
     };
 
     extractFromContent(body.content);
-    return text.trim();
+    return this.formatWikiMarkup(text.trim());
+  }
+
+  private formatWikiMarkup(text: string): string {
+    if (!text) return '';
+
+    return text
+      // Convert Confluence headers to markdown headers
+      .replace(/^h([1-6])\.\s*/gm, (match, level) => '#'.repeat(parseInt(level)) + ' ')
+      // Convert horizontal rules
+      .replace(/^----+$/gm, '---')
+      // Handle panels - convert to blockquotes for better readability
+      .replace(/\{panel:title=([^|]*)[^}]*\}/g, '\n> **$1**\n>')
+      .replace(/\{panel\}/g, '\n')
+      // Handle colored text/backgrounds - keep the text but remove styling
+      .replace(/\{color:[^}]*\}([^{]*)\{color\}/g, '$1')
+      // Convert checkboxes
+      .replace(/☐/g, '- [ ]')
+      .replace(/☑/g, '- [x]')
+      // Clean up multiple newlines
+      .replace(/\n{3,}/g, '\n\n')
+      // Ensure proper spacing around headers
+      .replace(/\n(#{1,6}\s)/g, '\n\n$1')
+      .trim();
   }
 
   async getProjects(): Promise<any[]> {
@@ -419,17 +446,7 @@ export class JiraService {
     }
 
     if (comment) {
-      data.comment = {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: comment
-          }]
-        }]
-      };
+      data.comment = this.parseDescriptionToADF(comment);
     }
 
     const response = await this.client.post<any>(`/rest/api/3/issue/${issueKey}/worklog`, data);
@@ -444,17 +461,7 @@ export class JiraService {
     }
 
     if (comment) {
-      data.comment = {
-        type: 'doc',
-        version: 1,
-        content: [{
-          type: 'paragraph',
-          content: [{
-            type: 'text',
-            text: comment
-          }]
-        }]
-      };
+      data.comment = this.parseDescriptionToADF(comment);
     }
 
     const response = await this.client.put<any>(`/rest/api/3/issue/${issueKey}/worklog/${worklogId}`, data);
@@ -512,17 +519,7 @@ export class JiraService {
         project: { key: parentKey.split('-')[0] },
         parent: { key: parentKey },
         summary,
-        description: {
-          type: 'doc',
-          version: 1,
-          content: [{
-            type: 'paragraph',
-            content: [{
-              type: 'text',
-              text: description
-            }]
-          }]
-        },
+        description: this.parseDescriptionToADF(description),
         issuetype: { name: 'Sub-task' }
       }
     };
@@ -694,6 +691,327 @@ export class JiraService {
         }
         return retryResult;
       }
+    }
+
+    return result;
+  }
+
+  // Enhanced description parser that converts text to proper ADF format
+  private parseDescriptionToADF(description: string): any {
+    const lines = description.split('\n');
+    const content: any[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      if (line === '') {
+        // Skip empty lines - let Claude handle spacing naturally
+        continue;
+      }
+
+      // Handle Confluence wiki markup headers (h1., h2., h3., etc.)
+      const confluenceHeaderMatch = line.match(/^h([1-6])\.\s*(.*)$/);
+      if (confluenceHeaderMatch) {
+        const level = parseInt(confluenceHeaderMatch[1]);
+        const headerText = confluenceHeaderMatch[2];
+        content.push({
+          type: 'heading',
+          attrs: { level },
+          content: [{
+            type: 'text',
+            text: headerText
+          }]
+        });
+        continue;
+      }
+
+      // Handle markdown headers (## Header, ### Header)
+      if (line.startsWith('###')) {
+        content.push({
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{
+            type: 'text',
+            text: line.substring(3).trim()
+          }]
+        });
+      } else if (line.startsWith('##')) {
+        content.push({
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{
+            type: 'text',
+            text: line.substring(2).trim()
+          }]
+        });
+      } else if (line.startsWith('#')) {
+        content.push({
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{
+            type: 'text',
+            text: line.substring(1).trim()
+          }]
+        });
+      }
+      // Handle horizontal rules (---- or ----)
+      else if (/^-{4,}$/.test(line)) {
+        content.push({
+          type: 'rule'
+        });
+      }
+      // Handle Confluence panels
+      else if (line.match(/^\{panel:/)) {
+        const panelMatch = line.match(/^\{panel:title=([^|]*)[^}]*\}$/);
+        if (panelMatch) {
+          const title = panelMatch[1];
+          // Start collecting panel content
+          const panelContent: any[] = [];
+          i++; // Move to next line
+
+          // Collect content until we hit {panel}
+          while (i < lines.length && !lines[i].trim().match(/^\{panel\}$/)) {
+            const panelLine = lines[i].trim();
+            if (panelLine) {
+              panelContent.push({
+                type: 'paragraph',
+                content: this.parseInlineFormatting(panelLine)
+              });
+            }
+            i++;
+          }
+
+          // Create panel as an info panel (closest ADF equivalent)
+          content.push({
+            type: 'panel',
+            attrs: { panelType: 'info' },
+            content: [
+              {
+                type: 'paragraph',
+                content: [{
+                  type: 'text',
+                  text: title,
+                  marks: [{ type: 'strong' }]
+                }]
+              },
+              ...panelContent
+            ]
+          });
+        }
+      }
+      // Handle bullet points
+      else if (line.startsWith('- ') || line.startsWith('* ')) {
+        // Check if we need to start a new bullet list or continue existing one
+        const lastItem = content[content.length - 1];
+        const bulletText = line.substring(2).trim();
+
+        if (lastItem && lastItem.type === 'bulletList') {
+          lastItem.content.push({
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: this.parseInlineFormatting(bulletText)
+            }]
+          });
+        } else {
+          content.push({
+            type: 'bulletList',
+            content: [{
+              type: 'listItem',
+              content: [{
+                type: 'paragraph',
+                content: this.parseInlineFormatting(bulletText)
+              }]
+            }]
+          });
+        }
+      }
+      // Handle numbered lists
+      else if (/^\d+\.\s/.test(line)) {
+        const match = line.match(/^\d+\.\s(.+)$/);
+        if (match) {
+          const listText = match[1];
+          const lastItem = content[content.length - 1];
+
+          if (lastItem && lastItem.type === 'orderedList') {
+            lastItem.content.push({
+              type: 'listItem',
+              content: [{
+                type: 'paragraph',
+                content: this.parseInlineFormatting(listText)
+              }]
+            });
+          } else {
+            content.push({
+              type: 'orderedList',
+              content: [{
+                type: 'listItem',
+                content: [{
+                  type: 'paragraph',
+                  content: this.parseInlineFormatting(listText)
+                }]
+              }]
+            });
+          }
+        }
+      }
+      // Handle code blocks (```)
+      else if (line.startsWith('```')) {
+        const codeLines: string[] = [];
+        i++; // Skip the opening ```
+
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+
+        content.push({
+          type: 'codeBlock',
+          content: [{
+            type: 'text',
+            text: codeLines.join('\n')
+          }]
+        });
+      }
+      // Regular paragraph
+      else {
+        content.push({
+          type: 'paragraph',
+          content: this.parseInlineFormatting(line)
+        });
+      }
+    }
+
+    // If no content was parsed, add a simple paragraph
+    if (content.length === 0) {
+      content.push({
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: description || ''
+        }]
+      });
+    }
+
+    return {
+      type: 'doc',
+      version: 1,
+      content
+    };
+  }
+
+  // Parse inline formatting like **bold**, *italic*, `code`, emojis
+  private parseInlineFormatting(text: string): any[] {
+    const result: any[] = [];
+    let currentPos = 0;
+
+    // Process patterns in order of precedence to avoid conflicts
+    // **bold** should be processed before *italic* to handle **text** correctly
+    const patterns = [
+      { regex: /\*\*(.*?)\*\*/g, type: 'strong' },    // **bold** (process first)
+      { regex: /`([^`]+?)`/g, type: 'code' },         // `code`
+    ];
+
+    let matches: any[] = [];
+
+    // Find all formatting matches
+    patterns.forEach(pattern => {
+      let match;
+      const regex = new RegExp(pattern.regex.source, 'g');
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          text: match[1],
+          type: pattern.type,
+          fullMatch: match[0]
+        });
+      }
+    });
+
+    // Sort matches by position and remove overlapping matches
+    matches.sort((a, b) => a.start - b.start);
+
+    // After processing bold and code, handle italic patterns that don't overlap
+    let tempText = text;
+    // Remove already matched bold and code patterns from consideration
+    matches.forEach(match => {
+      tempText = tempText.substring(0, match.start) + ' '.repeat(match.end - match.start) + tempText.substring(match.end);
+    });
+
+    // Now find italic patterns in the remaining text
+    const italicRegex = /\*([^*]+?)\*/g;
+    let italicMatch;
+    while ((italicMatch = italicRegex.exec(tempText)) !== null) {
+      matches.push({
+        start: italicMatch.index,
+        end: italicMatch.index + italicMatch[0].length,
+        text: italicMatch[1],
+        type: 'em',
+        fullMatch: italicMatch[0]
+      });
+    }
+
+    // Sort matches by position and remove overlapping matches
+    matches.sort((a, b) => a.start - b.start);
+
+    // Filter out overlapping matches (keep the first one in case of conflict)
+    const filteredMatches: any[] = [];
+    for (const match of matches) {
+      const isOverlapping = filteredMatches.some(existing =>
+        (match.start >= existing.start && match.start < existing.end) ||
+        (match.end > existing.start && match.end <= existing.end) ||
+        (match.start <= existing.start && match.end >= existing.end)
+      );
+
+      if (!isOverlapping) {
+        filteredMatches.push(match);
+      }
+    }
+
+    // Sort filtered matches by position for proper processing
+    filteredMatches.sort((a, b) => a.start - b.start);
+
+    // Process text with formatting
+    filteredMatches.forEach(match => {
+      // Add text before the match
+      if (match.start > currentPos) {
+        const beforeText = text.substring(currentPos, match.start);
+        if (beforeText) {
+          result.push({
+            type: 'text',
+            text: beforeText
+          });
+        }
+      }
+
+      // Add formatted text
+      result.push({
+        type: 'text',
+        text: match.text,
+        marks: [{ type: match.type }]
+      });
+
+      currentPos = match.end;
+    });
+
+    // Add remaining text
+    if (currentPos < text.length) {
+      const remainingText = text.substring(currentPos);
+      if (remainingText) {
+        result.push({
+          type: 'text',
+          text: remainingText
+        });
+      }
+    }
+
+    // If no formatting was found, return simple text
+    if (result.length === 0) {
+      result.push({
+        type: 'text',
+        text: text
+      });
     }
 
     return result;

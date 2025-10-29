@@ -1125,11 +1125,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             customFields
           };
           const issue = await jiraService.createIssue(projectKey, summary, description, issueType, additionalFields);
+
+          // Format optional fields display
+          const optionalFields = [];
+          if (duedate) optionalFields.push(`📅 **Due Date:** ${duedate}`);
+          if (priority) optionalFields.push(`🔥 **Priority:** ${priority}`);
+          if (labels && labels.length > 0) optionalFields.push(`🏷️ **Labels:** ${labels.join(', ')}`);
+          if (components && components.length > 0) optionalFields.push(`🧩 **Components:** ${components.join(', ')}`);
+          if (assignee) optionalFields.push(`👤 **Assignee:** ${issue.assignee || assignee}`);
+
+          const optionalFieldsText = optionalFields.length > 0 ? `\n\n${optionalFields.join('\n')}` : '';
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(issue, null, 2)
+                text: `✅ **Jira Issue Created Successfully**
+
+🎫 **Issue Key:** ${issue.key}
+📝 **Summary:** ${issue.summary}
+📋 **Issue Type:** ${issueType || 'Task'}
+📊 **Status:** ${issue.status}
+📅 **Created:** ${new Date(issue.created).toLocaleString()}${optionalFieldsText}
+
+📄 **Description:** Successfully created with provided content
+
+🔗 **Issue URL:** [View Issue](https://${process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net'}/browse/${issue.key})`
               }
             ]
           };
@@ -1156,11 +1177,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
         try {
           const issue = await jiraService.updateIssue(issueKey, { summary, description, assignee });
+
+          // Format the updated fields display
+          const updatedFields = [];
+          if (summary) updatedFields.push(`📝 **Summary:** Updated to "${issue.summary}"`);
+          if (description) updatedFields.push(`📄 **Description:** Updated successfully`);
+          if (assignee) updatedFields.push(`👤 **Assignee:** ${issue.assignee || assignee}`);
+
+          const updatedFieldsText = updatedFields.length > 0 ? `\n\n**Updated Fields:**\n${updatedFields.join('\n')}` : '';
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(issue, null, 2)
+                text: `✅ **Jira Issue Updated Successfully**
+
+🎫 **Issue Key:** ${issue.key}
+📊 **Current Status:** ${issue.status}
+📅 **Last Updated:** ${new Date(issue.updated).toLocaleString()}${updatedFieldsText}
+
+🔗 **Issue URL:** [View Issue](https://${process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net'}/browse/${issue.key})`
               }
             ]
           };

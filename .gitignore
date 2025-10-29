@@ -187,3 +187,11 @@ debug.log
 
 # Claude Code local configuration
 .claude/
+
+# MCP configuration files (contain API tokens)
+.mcp.json
+
+# Test files with sensitive data
+test-*.js
+test-*.cjs
+test-*.mjs
