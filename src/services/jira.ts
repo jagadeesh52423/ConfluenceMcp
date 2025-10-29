@@ -278,6 +278,53 @@ export class JiraService {
             extractFromContent(item.content);
           }
           text += '```';
+        } else if (item.type === 'table') {
+          // Extract table as markdown
+          if (item.content) {
+            const rows: string[][] = [];
+            item.content.forEach((row: any) => {
+              if (row.type === 'tableRow' && row.content) {
+                const cells: string[] = [];
+                row.content.forEach((cell: any) => {
+                  if ((cell.type === 'tableCell' || cell.type === 'tableHeader') && cell.content) {
+                    let cellText = '';
+                    const extractCellText = (cellContent: any[]) => {
+                      cellContent.forEach((cellItem: any) => {
+                        if (cellItem.type === 'paragraph' && cellItem.content) {
+                          cellItem.content.forEach((textItem: any) => {
+                            if (textItem.type === 'text' && textItem.text) {
+                              cellText += textItem.text;
+                            }
+                          });
+                        }
+                      });
+                    };
+                    extractCellText(cell.content);
+                    cells.push(cellText.trim());
+                  }
+                });
+                if (cells.length > 0) {
+                  rows.push(cells);
+                }
+              }
+            });
+
+            // Format as markdown table
+            if (rows.length > 0) {
+              const [headerRow, ...dataRows] = rows;
+
+              // Header row
+              text += '\n| ' + headerRow.join(' | ') + ' |\n';
+
+              // Separator row
+              text += '|' + headerRow.map(() => '--------').join('|') + '|\n';
+
+              // Data rows
+              dataRows.forEach(row => {
+                text += '| ' + row.join(' | ') + ' |\n';
+              });
+            }
+          }
         } else if (item.content) {
           extractFromContent(item.content);
         }
@@ -871,6 +918,93 @@ export class JiraService {
             type: 'text',
             text: codeLines.join('\n')
           }]
+        });
+      }
+      // Handle markdown tables
+      else if (line.includes('|') && line.trim() !== '|') {
+        // Check if this looks like a markdown table row
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+
+        if (cells.length >= 2) {
+          // This looks like a table row, start collecting table data
+          const tableRows: string[][] = [];
+          let currentLine = i;
+
+          // Collect all consecutive table rows
+          while (currentLine < lines.length) {
+            const tableLine = lines[currentLine].trim();
+            if (!tableLine.includes('|') || tableLine === '') break;
+
+            // Skip separator lines (|-----|-----|)
+            if (tableLine.match(/^\|?[\s\-:|]+\|?$/)) {
+              currentLine++;
+              continue;
+            }
+
+            const rowCells = tableLine.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+            if (rowCells.length >= 2) {
+              tableRows.push(rowCells);
+            } else {
+              break;
+            }
+            currentLine++;
+          }
+
+          // Create ADF table structure
+          if (tableRows.length > 0) {
+            const [headerRow, ...dataRows] = tableRows;
+
+            // Build table structure with proper ADF format
+            const tableContent: any[] = [];
+
+            // Header row
+            tableContent.push({
+              type: 'tableRow',
+              content: headerRow.map(cellText => ({
+                type: 'tableHeader',
+                attrs: {},
+                content: [{
+                  type: 'paragraph',
+                  content: this.parseInlineFormatting(cellText)
+                }]
+              }))
+            });
+
+            // Data rows
+            dataRows.forEach(row => {
+              tableContent.push({
+                type: 'tableRow',
+                content: row.map(cellText => ({
+                  type: 'tableCell',
+                  attrs: {},
+                  content: [{
+                    type: 'paragraph',
+                    content: this.parseInlineFormatting(cellText)
+                  }]
+                }))
+              });
+            });
+
+            // Create complete table structure
+            content.push({
+              type: 'table',
+              attrs: {
+                isNumberColumnEnabled: false,
+                layout: 'default'
+              },
+              content: tableContent
+            });
+
+            // Skip the lines we've processed
+            i = currentLine - 1; // -1 because the for loop will increment
+            continue;
+          }
+        }
+
+        // If we reach here, it's not a valid table, treat as regular paragraph
+        content.push({
+          type: 'paragraph',
+          content: this.parseInlineFormatting(line)
         });
       }
       // Regular paragraph
