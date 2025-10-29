@@ -920,7 +920,7 @@ export class JiraService {
           }]
         });
       }
-      // Handle markdown tables
+      // Handle markdown tables - convert to Confluence wiki markup
       else if (line.includes('|') && line.trim() !== '|') {
         // Check if this looks like a markdown table row
         const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
@@ -950,49 +950,30 @@ export class JiraService {
             currentLine++;
           }
 
-          // Create ADF table structure
+          // Convert to Confluence wiki markup table
           if (tableRows.length > 0) {
             const [headerRow, ...dataRows] = tableRows;
 
-            // Build table structure with proper ADF format
-            const tableContent: any[] = [];
+            // Create Confluence table markup with proper line breaks
+            const tableLines: string[] = [];
 
-            // Header row
-            tableContent.push({
-              type: 'tableRow',
-              content: headerRow.map(cellText => ({
-                type: 'tableHeader',
-                attrs: {},
-                content: [{
-                  type: 'paragraph',
-                  content: this.parseInlineFormatting(cellText)
-                }]
-              }))
-            });
+            // Header row (with bold formatting): ||*Header1*||*Header2*||
+            tableLines.push('||*' + headerRow.join('*||*') + '*||');
 
-            // Data rows
+            // Data rows: |Cell1|Cell2|
             dataRows.forEach(row => {
-              tableContent.push({
-                type: 'tableRow',
-                content: row.map(cellText => ({
-                  type: 'tableCell',
-                  attrs: {},
-                  content: [{
-                    type: 'paragraph',
-                    content: this.parseInlineFormatting(cellText)
-                  }]
-                }))
-              });
+              tableLines.push('|' + row.join('|') + '|');
             });
 
-            // Create complete table structure
+            const confluenceTable = tableLines.join('\n');
+
+            // Add as paragraph containing the confluence markup
             content.push({
-              type: 'table',
-              attrs: {
-                isNumberColumnEnabled: false,
-                layout: 'default'
-              },
-              content: tableContent
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: confluenceTable
+              }]
             });
 
             // Skip the lines we've processed
