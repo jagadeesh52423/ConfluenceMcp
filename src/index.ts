@@ -738,6 +738,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: 'bitbucket_get_pull_request',
+        description: 'Get details of a specific pull request',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            repoName: {
+              type: 'string',
+              description: 'Repository name'
+            },
+            prId: {
+              type: 'number',
+              description: 'Pull request ID'
+            },
+            includeDiff: {
+              type: 'boolean',
+              description: 'Whether to include the code diff/changes (default: false)',
+              default: false
+            }
+          },
+          required: ['repoName', 'prId']
+        }
+      },
+      {
         name: 'bitbucket_create_pull_request',
         description: 'Create a new pull request',
         inputSchema: {
@@ -1977,6 +2000,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
           ]
         };
+      }
+
+      case 'bitbucket_get_pull_request': {
+        const { repoName, prId, includeDiff = false } = args as { repoName: string; prId: number; includeDiff?: boolean };
+        const pr = await bitbucketService.getPullRequest(repoName, prId, includeDiff);
+
+        if (includeDiff && pr.diff) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Pull Request #${prId} Details:\n\n${JSON.stringify(pr, null, 2)}\n\n---\n\nCode Diff:\n\n\`\`\`diff\n${pr.diff}\n\`\`\``
+              }
+            ]
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(pr, null, 2)
+              }
+            ]
+          };
+        }
       }
 
       case 'bitbucket_create_pull_request': {

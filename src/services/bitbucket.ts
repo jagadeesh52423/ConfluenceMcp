@@ -130,6 +130,27 @@ export class BitbucketService {
     return response.data.values;
   }
 
+  async getPullRequest(repoName: string, prId: number, includeDiff: boolean = false): Promise<any> {
+    const response = await this.client.get(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}`);
+    const pullRequest = response.data;
+
+    if (includeDiff) {
+      try {
+        const diffResponse = await this.client.get(
+          `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/diff`,
+          { responseType: 'text' }
+        );
+        pullRequest.diff = diffResponse.data;
+      } catch (error) {
+        console.warn(`Failed to fetch diff for PR ${prId}:`, error);
+        pullRequest.diff = null;
+      }
+    }
+
+    return pullRequest;
+  }
+
+
   async createPullRequest(
     repoName: string,
     title: string,
