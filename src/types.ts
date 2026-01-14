@@ -48,6 +48,26 @@ export interface ConfluencePage {
   updated: string;
 }
 
+export interface ConfluenceAttachment {
+  id: string;
+  title: string;
+  filename: string;
+  mediaType: string;
+  fileSize: number;
+  created: string;
+  downloadUrl: string;
+}
+
+export interface ConfluenceImage {
+  filename?: string;
+  fileContent?: string;
+  filePath?: string;
+  alt?: string;
+  caption?: string;
+  width?: number;
+  align?: 'left' | 'center' | 'right';
+}
+
 export interface BitbucketRepository {
   name: string;
   fullName: string;

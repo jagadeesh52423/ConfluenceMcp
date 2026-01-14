@@ -233,6 +233,27 @@ export class JiraService {
     }));
   }
 
+  async updateComment(issueKey: string, commentId: string, comment: string): Promise<any> {
+    const data = {
+      body: this.parseDescriptionToADF(comment)
+    };
+
+    const response = await this.client.put<any>(`/rest/api/3/issue/${issueKey}/comment/${commentId}`, data);
+
+    return {
+      id: response.id,
+      author: response.author?.displayName || 'Unknown',
+      body: this.extractTextFromADF(response.body),
+      created: response.created,
+      updated: response.updated,
+      updateAuthor: response.updateAuthor?.displayName
+    };
+  }
+
+  async deleteComment(issueKey: string, commentId: string): Promise<void> {
+    await this.client.delete(`/rest/api/3/issue/${issueKey}/comment/${commentId}`);
+  }
+
   private extractTextFromADF(body: any): string {
     if (!body) return '';
 

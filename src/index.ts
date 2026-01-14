@@ -85,6 +85,45 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             parentId: {
               type: 'string',
               description: 'Optional parent page ID'
+            },
+            images: {
+              type: 'array',
+              description: 'Optional array of images to upload and embed. Use {{IMAGE:filename}} placeholders in content to position images inline, or they will be appended at the end. Provide either filePath or fileContent for each image.',
+              items: {
+                type: 'object',
+                properties: {
+                  filePath: {
+                    type: 'string',
+                    description: 'Local file path (e.g., "/path/to/image.png"). Filename is auto-detected. Use {{IMAGE:image.png}} in content.'
+                  },
+                  filename: {
+                    type: 'string',
+                    description: 'Image filename (optional if filePath provided). Use {{IMAGE:filename}} in content to position it.'
+                  },
+                  fileContent: {
+                    type: 'string',
+                    description: 'Base64 encoded image content (alternative to filePath)'
+                  },
+                  alt: {
+                    type: 'string',
+                    description: 'Optional alt text for the image'
+                  },
+                  caption: {
+                    type: 'string',
+                    description: 'Optional caption to display below the image'
+                  },
+                  width: {
+                    type: 'number',
+                    description: 'Optional width in pixels'
+                  },
+                  align: {
+                    type: 'string',
+                    enum: ['left', 'center', 'right'],
+                    description: 'Optional alignment'
+                  }
+                },
+                required: []
+              }
             }
           },
           required: ['spaceKey', 'title', 'content']
@@ -147,6 +186,112 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ['spaceKey']
+        }
+      },
+      {
+        name: 'confluence_get_attachments',
+        description: 'Get all attachments for a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID to get attachments for'
+            }
+          },
+          required: ['pageId']
+        }
+      },
+      {
+        name: 'confluence_add_attachment',
+        description: 'Add an attachment to a Confluence page. Provide either filePath (local file) or fileContent (base64).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID to attach file to'
+            },
+            filePath: {
+              type: 'string',
+              description: 'Local file path to attach (e.g., "/path/to/file.svg"). If provided, filename is auto-detected.'
+            },
+            filename: {
+              type: 'string',
+              description: 'The filename for the attachment (optional if filePath is provided)'
+            },
+            fileContent: {
+              type: 'string',
+              description: 'Base64 encoded file content (alternative to filePath)'
+            }
+          },
+          required: ['pageId']
+        }
+      },
+      {
+        name: 'confluence_delete_attachment',
+        description: 'Delete an attachment from a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            attachmentId: {
+              type: 'string',
+              description: 'The attachment ID to delete'
+            }
+          },
+          required: ['attachmentId']
+        }
+      },
+      {
+        name: 'confluence_embed_image',
+        description: 'Attach an image to a Confluence page and embed it in the content. Provide either filePath (local file) or fileContent (base64).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID to embed the image in'
+            },
+            filePath: {
+              type: 'string',
+              description: 'Local file path to the image (e.g., "/path/to/diagram.svg"). If provided, filename is auto-detected.'
+            },
+            filename: {
+              type: 'string',
+              description: 'The filename for the image (optional if filePath is provided)'
+            },
+            fileContent: {
+              type: 'string',
+              description: 'Base64 encoded image content (alternative to filePath)'
+            },
+            alt: {
+              type: 'string',
+              description: 'Alt text for the image (defaults to filename)'
+            },
+            caption: {
+              type: 'string',
+              description: 'Optional caption to display below the image'
+            },
+            width: {
+              type: 'number',
+              description: 'Optional width in pixels for the image'
+            },
+            align: {
+              type: 'string',
+              enum: ['left', 'center', 'right'],
+              description: 'Image alignment (default: no alignment)'
+            },
+            position: {
+              type: 'string',
+              enum: ['top', 'bottom', 'after-heading'],
+              description: 'Where to insert the image (default: bottom)'
+            },
+            headingText: {
+              type: 'string',
+              description: 'If position is "after-heading", the heading text to insert after'
+            }
+          },
+          required: ['pageId']
         }
       },
 
@@ -292,6 +437,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             }
           },
           required: ['issueKey']
+        }
+      },
+      {
+        name: 'jira_update_comment',
+        description: 'Update an existing comment on a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key (e.g., PROJ-123)'
+            },
+            commentId: {
+              type: 'string',
+              description: 'The comment ID to update'
+            },
+            comment: {
+              type: 'string',
+              description: 'New comment text'
+            }
+          },
+          required: ['issueKey', 'commentId', 'comment']
+        }
+      },
+      {
+        name: 'jira_delete_comment',
+        description: 'Delete a comment from a Jira issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            issueKey: {
+              type: 'string',
+              description: 'The issue key (e.g., PROJ-123)'
+            },
+            commentId: {
+              type: 'string',
+              description: 'The comment ID to delete'
+            }
+          },
+          required: ['issueKey', 'commentId']
         }
       },
       {
@@ -948,29 +1133,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'confluence_create_page': {
-        const { spaceKey, title, content, parentId } = args as {
+        const { spaceKey, title, content, parentId, images } = args as {
           spaceKey: string;
           title: string;
           content: string;
           parentId?: string;
+          images?: Array<{filename?: string; fileContent?: string; filePath?: string; alt?: string; caption?: string; width?: number; align?: 'left' | 'center' | 'right'}>;
         };
         try {
-          const page = await confluenceService.createPage(spaceKey, title, content, parentId);
+          const page = await confluenceService.createPageWithImages(spaceKey, title, content, parentId, images);
+          const imageCount = images?.length || 0;
+          const resultText = imageCount > 0
+            ? `✅ Confluence page created successfully with ${imageCount} image(s)\n\n${JSON.stringify(page, null, 2)}`
+            : JSON.stringify(page, null, 2);
+
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(page, null, 2)
+                text: resultText
               }
             ]
           };
         } catch (error: any) {
           const errorDetails = error.response?.data || error.message;
+          const imageInfo = images?.length ? `\n- Images: ${images.length} image(s) to upload` : '';
           return {
             content: [
               {
                 type: 'text',
-                text: `❌ Failed to create Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Space Key: ${spaceKey}\n- Title: ${title}\n- Parent ID: ${parentId || 'none'}\n\n**Tip:** Check if the space exists and you have permission to create pages in it.`
+                text: `❌ Failed to create Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Space Key: ${spaceKey}\n- Title: ${title}\n- Parent ID: ${parentId || 'none'}${imageInfo}\n\n**Tip:** Check if the space exists and you have permission to create pages in it. For images, ensure they are properly base64 encoded.`
               }
             ],
             isError: true
@@ -1054,6 +1246,155 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to get pages from Confluence space\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Space Key: ${spaceKey}\n- Limit: ${limit || 25}\n\n**Tip:** Check if the space key exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_get_attachments': {
+        const { pageId } = args as { pageId: string };
+        try {
+          const attachments = await confluenceService.getAttachments(pageId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(attachments, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get attachments for Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n\n**Tip:** Check if the page exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_add_attachment': {
+        const { pageId, filename, fileContent, filePath } = args as {
+          pageId: string;
+          filename?: string;
+          fileContent?: string;
+          filePath?: string;
+        };
+
+        // Validate: need either filePath or fileContent
+        if (!filePath && !fileContent) {
+          return {
+            content: [{ type: 'text', text: '❌ Either filePath or fileContent must be provided' }],
+            isError: true
+          };
+        }
+
+        try {
+          const result = await confluenceService.addAttachment(pageId, filename, fileContent, filePath);
+          const attachedFilename = result.results?.[0]?.title || filename || filePath?.split('/').pop() || 'attachment';
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Attachment "${attachedFilename}" added successfully to page ${pageId}\n\n${JSON.stringify(result, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          const source = filePath ? `File Path: ${filePath}` : `Filename: ${filename}`;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add attachment to Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n- ${source}\n\n**Tip:** Check if the page exists, you have permission to attach files, and the file path exists or content is properly base64 encoded.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_delete_attachment': {
+        const { attachmentId } = args as { attachmentId: string };
+        try {
+          await confluenceService.deleteAttachment(attachmentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Attachment ${attachmentId} deleted successfully`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete attachment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Attachment ID: ${attachmentId}\n\n**Tip:** Check if the attachment exists and you have permission to delete it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_embed_image': {
+        const { pageId, filename, fileContent, filePath, alt, caption, width, align, position, headingText } = args as {
+          pageId: string;
+          filename?: string;
+          fileContent?: string;
+          filePath?: string;
+          alt?: string;
+          caption?: string;
+          width?: number;
+          align?: 'left' | 'center' | 'right';
+          position?: 'top' | 'bottom' | 'after-heading';
+          headingText?: string;
+        };
+
+        // Validate: need either filePath or fileContent
+        if (!filePath && !fileContent) {
+          return {
+            content: [{ type: 'text', text: '❌ Either filePath or fileContent must be provided' }],
+            isError: true
+          };
+        }
+
+        try {
+          const result = await confluenceService.embedImage(pageId, filename, fileContent, filePath, {
+            alt,
+            caption,
+            width,
+            align,
+            position,
+            headingText
+          });
+          const embeddedFilename = result.attachment.results?.[0]?.title || filename || filePath?.split('/').pop() || 'image';
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Image "${embeddedFilename}" attached and embedded successfully!\n\n**Attachment ID:** ${result.attachment.results?.[0]?.id}\n**Page Version:** ${result.page.version}\n**Position:** ${position || 'bottom'}\n${align ? `**Alignment:** ${align}` : ''}\n${width ? `**Width:** ${width}px` : ''}\n${caption ? `**Caption:** ${caption}` : ''}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          const source = filePath ? `File Path: ${filePath}` : `Filename: ${filename}`;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to embed image in Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n- ${source}\n- Position: ${position || 'bottom'}\n\n**Tip:** Check if the page exists, you have edit permission, and the file path exists or content is properly base64 encoded.`
               }
             ],
             isError: true
@@ -1282,6 +1623,58 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to get comments for Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n\n**Tip:** Check if the issue exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_update_comment': {
+        const { issueKey, commentId, comment } = args as { issueKey: string; commentId: string; comment: string };
+        try {
+          const result = await jiraService.updateComment(issueKey, commentId, comment);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Comment ${commentId} updated successfully on issue ${issueKey}\n\n${JSON.stringify(result, null, 2)}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to update comment on Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Comment ID: ${commentId}\n\n**Tip:** Check if the comment exists, you are the author, and you have permission to edit it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'jira_delete_comment': {
+        const { issueKey, commentId } = args as { issueKey: string; commentId: string };
+        try {
+          await jiraService.deleteComment(issueKey, commentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Comment ${commentId} deleted successfully from issue ${issueKey}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete comment from Jira issue\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Issue Key: ${issueKey}\n- Comment ID: ${commentId}\n\n**Tip:** Check if the comment exists and you have permission to delete it.`
               }
             ],
             isError: true
