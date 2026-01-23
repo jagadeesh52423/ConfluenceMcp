@@ -1,0 +1,53 @@
+# Source files (dist is published)
+src/
+
+# Config files
+tsconfig.json
+.eslintrc*
+.prettierrc*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.ts
+*.spec.ts
+test-*.js
+test-*.cjs
+test-*.mjs
+
+# Documentation source
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/
+*.tgz
+
+# Claude/MCP specific
+.claude/
+.mcp.json
+CLAUDE.md

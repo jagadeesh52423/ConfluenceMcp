@@ -1,5 +1,8 @@
 # Atlassian MCP Server
 
+[![npm version](https://badge.fury.io/js/atlassian-mcp-server.svg)](https://www.npmjs.com/package/atlassian-mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A comprehensive Model Context Protocol (MCP) server that provides AI assistants with access to Atlassian APIs including Jira, Confluence, and Bitbucket.
 
 ## Features
@@ -40,9 +43,22 @@ Advanced transition management with intelligent field suggestions:
 
 ## Installation
 
+### Option 1: Install from npm (Recommended)
+
+```bash
+npm install -g atlassian-mcp-server
+```
+
+Or use with npx without installing:
+```bash
+npx atlassian-mcp-server
+```
+
+### Option 2: Install from source
+
 1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server.git
 cd atlassian-mcp-server
 ```
 
@@ -114,7 +130,12 @@ ATLASSIAN_API_TOKEN=your-api-token
 
 ### Running the Server
 
-Start the MCP server:
+If installed globally:
+```bash
+atlassian-mcp-server
+```
+
+If running from source:
 ```bash
 npm start
 ```
@@ -131,6 +152,52 @@ Add the following to your Claude Desktop configuration file:
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
 
+#### If installed globally via npm:
+```json
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "atlassian-mcp-server",
+      "env": {
+        "CONFLUENCE_DOMAIN": "your-domain.atlassian.net",
+        "CONFLUENCE_EMAIL": "your-email@example.com",
+        "CONFLUENCE_API_TOKEN": "your-confluence-api-token",
+        "JIRA_DOMAIN": "your-domain.atlassian.net",
+        "JIRA_EMAIL": "your-email@example.com",
+        "JIRA_API_TOKEN": "your-jira-api-token",
+        "BITBUCKET_WORKSPACE": "your-workspace",
+        "BITBUCKET_USERNAME": "your-username",
+        "BITBUCKET_API_TOKEN": "your-bitbucket-api-token"
+      }
+    }
+  }
+}
+```
+
+#### If using npx:
+```json
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "npx",
+      "args": ["-y", "atlassian-mcp-server"],
+      "env": {
+        "CONFLUENCE_DOMAIN": "your-domain.atlassian.net",
+        "CONFLUENCE_EMAIL": "your-email@example.com",
+        "CONFLUENCE_API_TOKEN": "your-confluence-api-token",
+        "JIRA_DOMAIN": "your-domain.atlassian.net",
+        "JIRA_EMAIL": "your-email@example.com",
+        "JIRA_API_TOKEN": "your-jira-api-token",
+        "BITBUCKET_WORKSPACE": "your-workspace",
+        "BITBUCKET_USERNAME": "your-username",
+        "BITBUCKET_API_TOKEN": "your-bitbucket-api-token"
+      }
+    }
+  }
+}
+```
+
+#### If installed from source:
 ```json
 {
   "mcpServers": {
@@ -277,4 +344,6 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-For issues and feature requests, please use the GitHub issue tracker.
+- **npm package**: [atlassian-mcp-server](https://www.npmjs.com/package/atlassian-mcp-server)
+- **Issues & Feature Requests**: [GitHub Issues](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server/issues)
+- **Source Code**: [GitHub Repository](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server)
