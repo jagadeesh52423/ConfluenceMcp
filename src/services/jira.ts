@@ -1168,7 +1168,7 @@ export class JiraService {
     };
   }
 
-  // Parse inline formatting like **bold**, *italic*, `code`, emojis
+  // Parse inline formatting like **bold**, *italic*, `code`, {{code}}, emojis
   private parseInlineFormatting(text: string): any[] {
     const result: any[] = [];
     let currentPos = 0;
@@ -1177,7 +1177,8 @@ export class JiraService {
     // **bold** should be processed before *italic* to handle **text** correctly
     const patterns = [
       { regex: /\*\*(.*?)\*\*/g, type: 'strong' },    // **bold** (process first)
-      { regex: /`([^`]+?)`/g, type: 'code' },         // `code`
+      { regex: /`([^`]+?)`/g, type: 'code' },         // `code` (markdown style)
+      { regex: /\{\{(.+?)\}\}/g, type: 'code' },      // {{code}} (Confluence/Jira wiki style)
     ];
 
     let matches: any[] = [];
