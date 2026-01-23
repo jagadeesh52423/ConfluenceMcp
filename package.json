@@ -1,5 +1,5 @@
 {
-  "name": "atlassian-mcp-server",
+  "name": "@jagadeesh52423/atlassian-mcp-server",
   "version": "1.0.0",
   "description": "MCP server for Atlassian APIs (Jira, Confluence, Bitbucket)",
   "main": "dist/index.js",
@@ -41,6 +41,9 @@
     "url": "https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server/issues"
   },
   "homepage": "https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.0.0"
   },

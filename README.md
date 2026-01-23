@@ -1,6 +1,6 @@
 # Atlassian MCP Server
 
-[![npm version](https://badge.fury.io/js/atlassian-mcp-server.svg)](https://www.npmjs.com/package/atlassian-mcp-server)
+[![npm version](https://badge.fury.io/js/@jagadeesh52423%2Fatlassian-mcp-server.svg)](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A comprehensive Model Context Protocol (MCP) server that provides AI assistants with access to Atlassian APIs including Jira, Confluence, and Bitbucket.
@@ -46,12 +46,12 @@ Advanced transition management with intelligent field suggestions:
 ### Option 1: Install from npm (Recommended)
 
 ```bash
-npm install -g atlassian-mcp-server
+npm install -g @jagadeesh52423/atlassian-mcp-server
 ```
 
 Or use with npx without installing:
 ```bash
-npx atlassian-mcp-server
+npx @jagadeesh52423/atlassian-mcp-server
 ```
 
 ### Option 2: Install from source
@@ -180,7 +180,7 @@ Add the following to your Claude Desktop configuration file:
   "mcpServers": {
     "atlassian": {
       "command": "npx",
-      "args": ["-y", "atlassian-mcp-server"],
+      "args": ["-y", "@jagadeesh52423/atlassian-mcp-server"],
       "env": {
         "CONFLUENCE_DOMAIN": "your-domain.atlassian.net",
         "CONFLUENCE_EMAIL": "your-email@example.com",
@@ -344,6 +344,6 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **npm package**: [atlassian-mcp-server](https://www.npmjs.com/package/atlassian-mcp-server)
+- **npm package**: [@jagadeesh52423/atlassian-mcp-server](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 - **Issues & Feature Requests**: [GitHub Issues](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server/issues)
 - **Source Code**: [GitHub Repository](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server)
