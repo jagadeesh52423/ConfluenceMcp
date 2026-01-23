@@ -1,5 +1,5 @@
 import { ConfluenceClient } from '../confluence-client.js';
-import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, SearchOptions } from '../types.js';
+import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, SearchOptions } from '../types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -351,5 +351,82 @@ export class ConfluenceService {
     markup += '</ac:image>';
 
     return markup;
+  }
+
+  // Comment Methods
+
+  async getComments(pageId: string): Promise<ConfluenceComment[]> {
+    const params = {
+      expand: 'body.storage,version,history'
+    };
+
+    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/child/comment`, params);
+
+    return response.results?.map((comment: any) => ({
+      id: comment.id,
+      body: comment.body?.storage?.value || '',
+      author: comment.history?.createdBy?.displayName || 'Unknown',
+      authorAccountId: comment.history?.createdBy?.accountId,
+      created: comment.history?.createdDate || '',
+      updated: comment.version?.when || '',
+      version: comment.version?.number || 1
+    })) || [];
+  }
+
+  async addComment(pageId: string, body: string): Promise<ConfluenceComment> {
+    const data = {
+      type: 'comment',
+      container: {
+        id: pageId,
+        type: 'page'
+      },
+      body: {
+        storage: {
+          value: body,
+          representation: 'storage'
+        }
+      }
+    };
+
+    const comment = await this.client.post<any>('/wiki/rest/api/content', data);
+
+    return {
+      id: comment.id,
+      body: comment.body?.storage?.value || body,
+      author: comment.history?.createdBy?.displayName || 'Unknown',
+      authorAccountId: comment.history?.createdBy?.accountId,
+      created: comment.history?.createdDate || '',
+      updated: comment.version?.when || '',
+      version: comment.version?.number || 1
+    };
+  }
+
+  async updateComment(commentId: string, body: string, version: number): Promise<ConfluenceComment> {
+    const data = {
+      type: 'comment',
+      version: { number: version + 1 },
+      body: {
+        storage: {
+          value: body,
+          representation: 'storage'
+        }
+      }
+    };
+
+    const comment = await this.client.put<any>(`/wiki/rest/api/content/${commentId}`, data);
+
+    return {
+      id: comment.id,
+      body: comment.body?.storage?.value || body,
+      author: comment.history?.createdBy?.displayName || 'Unknown',
+      authorAccountId: comment.history?.createdBy?.accountId,
+      created: comment.history?.createdDate || '',
+      updated: comment.version?.when || '',
+      version: comment.version?.number || 1
+    };
+  }
+
+  async deleteComment(commentId: string): Promise<void> {
+    await this.client.delete(`/wiki/rest/api/content/${commentId}`);
   }
 }

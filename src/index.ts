@@ -294,6 +294,74 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['pageId']
         }
       },
+      {
+        name: 'confluence_get_comments',
+        description: 'Get all comments for a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID to get comments for'
+            }
+          },
+          required: ['pageId']
+        }
+      },
+      {
+        name: 'confluence_add_comment',
+        description: 'Add a comment to a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pageId: {
+              type: 'string',
+              description: 'The page ID to add comment to'
+            },
+            body: {
+              type: 'string',
+              description: 'Comment content in Confluence storage format (HTML)'
+            }
+          },
+          required: ['pageId', 'body']
+        }
+      },
+      {
+        name: 'confluence_update_comment',
+        description: 'Update an existing comment on a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            commentId: {
+              type: 'string',
+              description: 'The comment ID to update'
+            },
+            body: {
+              type: 'string',
+              description: 'New comment content in Confluence storage format (HTML)'
+            },
+            version: {
+              type: 'number',
+              description: 'Current version number of the comment'
+            }
+          },
+          required: ['commentId', 'body', 'version']
+        }
+      },
+      {
+        name: 'confluence_delete_comment',
+        description: 'Delete a comment from a Confluence page',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            commentId: {
+              type: 'string',
+              description: 'The comment ID to delete'
+            }
+          },
+          required: ['commentId']
+        }
+      },
 
       // Jira Tools
       {
@@ -1395,6 +1463,110 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               {
                 type: 'text',
                 text: `❌ Failed to embed image in Confluence page\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n- ${source}\n- Position: ${position || 'bottom'}\n\n**Tip:** Check if the page exists, you have edit permission, and the file path exists or content is properly base64 encoded.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_get_comments': {
+        const { pageId } = args as { pageId: string };
+        try {
+          const comments = await confluenceService.getComments(pageId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(comments, null, 2)
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to get comments\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n\n**Tip:** Check if the page exists and you have permission to view it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_add_comment': {
+        const { pageId, body } = args as { pageId: string; body: string };
+        try {
+          const comment = await confluenceService.addComment(pageId, body);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Comment added successfully!\n\n**Comment ID:** ${comment.id}\n**Author:** ${comment.author}\n**Created:** ${comment.created}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to add comment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Page ID: ${pageId}\n\n**Tip:** Check if the page exists and you have permission to comment on it.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_update_comment': {
+        const { commentId, body, version } = args as { commentId: string; body: string; version: number };
+        try {
+          const comment = await confluenceService.updateComment(commentId, body, version);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Comment updated successfully!\n\n**Comment ID:** ${comment.id}\n**New Version:** ${comment.version}\n**Updated:** ${comment.updated}`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to update comment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Comment ID: ${commentId}\n- Version: ${version}\n\n**Tip:** Check if the comment exists, you have permission to edit it, and the version number is correct.`
+              }
+            ],
+            isError: true
+          };
+        }
+      }
+
+      case 'confluence_delete_comment': {
+        const { commentId } = args as { commentId: string };
+        try {
+          await confluenceService.deleteComment(commentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `✅ Comment ${commentId} deleted successfully`
+              }
+            ]
+          };
+        } catch (error: any) {
+          const errorDetails = error.response?.data || error.message;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `❌ Failed to delete comment\n\n**Error Details:**\n${JSON.stringify(errorDetails, null, 2)}\n\n**Request:**\n- Comment ID: ${commentId}\n\n**Tip:** Check if the comment exists and you have permission to delete it.`
               }
             ],
             isError: true

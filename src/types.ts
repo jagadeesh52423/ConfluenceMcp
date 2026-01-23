@@ -68,6 +68,16 @@ export interface ConfluenceImage {
   align?: 'left' | 'center' | 'right';
 }
 
+export interface ConfluenceComment {
+  id: string;
+  body: string;
+  author: string;
+  authorAccountId?: string;
+  created: string;
+  updated?: string;
+  version: number;
+}
+
 export interface BitbucketRepository {
   name: string;
   fullName: string;
