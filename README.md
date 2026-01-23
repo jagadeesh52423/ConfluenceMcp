@@ -7,23 +7,29 @@ A comprehensive Model Context Protocol (MCP) server that provides AI assistants 
 
 ## Features
 
-### Confluence Integration
+### Confluence Integration (14 tools)
 - Search pages by text query
 - Get specific pages by ID
-- Create new pages with content
-- Update existing pages
+- Create and update pages with content
 - List spaces and pages within spaces
+- **Attachments**: Add, list, and delete attachments
+- **Comments**: Full CRUD operations on page comments
+- **Images**: Embed images in page content
 - Full support for Confluence storage format
 
-### Jira Integration
-- Search issues by text query
+### Jira Integration (29 tools)
+- Search issues by text or JQL query
 - Get specific issues by key
-- Create new issues with customizable fields
-- Update existing issues
-- Add comments to issues
-- Transition issues between statuses with **Smart Field Handling**
+- Create and update issues with customizable fields
+- **Comments**: Full CRUD operations on issue comments
+- **Transitions**: Move issues between statuses with **Smart Field Handling**
+- **Attachments**: Add, list, and delete attachments
+- **Issue Links**: Create and manage links between issues
+- **Worklogs**: Track time spent on issues
+- **Watchers**: Manage issue watchers
+- **Subtasks**: Create and list subtasks
+- **History**: View issue change history
 - List projects and issue types
-- Assign issues to users
 
 #### Smart Field Handling
 Advanced transition management with intelligent field suggestions:
@@ -32,14 +38,13 @@ Advanced transition management with intelligent field suggestions:
 - **Auto-Suggestions**: Provides context-aware suggestions with reasoning
 - **Enhanced Error Handling**: Returns detailed field information instead of cryptic errors
 
-### Bitbucket Integration
+### Bitbucket Integration (11 tools)
 - List and search repositories
 - Get repository details
 - Create new repositories
 - Manage branches and commits
-- Handle pull requests (create, list, review)
+- **Pull Requests**: Create, list, and get PR details with diffs
 - Issue tracking within repositories
-- File content operations
 
 ## Installation
 
@@ -211,38 +216,80 @@ Add the following to your Claude Desktop configuration file:
 
 ## Available Tools
 
-### Confluence Tools
+### Confluence Tools (14 tools)
 
-- `confluence_search_pages`: Search pages by text
-- `confluence_get_page`: Get specific page by ID
-- `confluence_create_page`: Create new page
-- `confluence_update_page`: Update existing page
-- `confluence_get_spaces`: List all spaces
-- `confluence_get_pages_by_space`: Get pages from specific space
+| Tool | Description |
+|------|-------------|
+| `confluence_search_pages` | Search pages by text query |
+| `confluence_get_page` | Get specific page by ID |
+| `confluence_create_page` | Create new page with content |
+| `confluence_update_page` | Update existing page |
+| `confluence_get_spaces` | List all spaces |
+| `confluence_get_pages_by_space` | Get pages from specific space |
+| `confluence_get_attachments` | List attachments on a page |
+| `confluence_add_attachment` | Add attachment to a page |
+| `confluence_delete_attachment` | Delete attachment from a page |
+| `confluence_embed_image` | Embed image in page content |
+| `confluence_get_comments` | Get comments on a page |
+| `confluence_add_comment` | Add comment to a page |
+| `confluence_update_comment` | Update existing comment |
+| `confluence_delete_comment` | Delete comment from a page |
 
-### Jira Tools
+### Jira Tools (29 tools)
 
-- `jira_search_issues`: Search issues by text
-- `jira_get_issue`: Get specific issue by key
-- `jira_create_issue`: Create new issue
-- `jira_update_issue`: Update existing issue
-- `jira_add_comment`: Add comment to issue
-- `jira_get_projects`: List all projects
-- `jira_get_issue_transitions`: Get available transitions for an issue
-- `jira_transition_issue`: Change issue status (basic)
-- `jira_transition_issue_interactive`: Change issue status with smart field handling
+| Tool | Description |
+|------|-------------|
+| `jira_search_issues` | Search issues by text or JQL |
+| `jira_get_issue` | Get specific issue by key |
+| `jira_create_issue` | Create new issue |
+| `jira_update_issue` | Update existing issue |
+| `jira_get_projects` | List all projects |
+| **Comments** | |
+| `jira_add_comment` | Add comment to issue |
+| `jira_get_comments` | Get comments on an issue |
+| `jira_update_comment` | Update existing comment |
+| `jira_delete_comment` | Delete comment from issue |
+| **Transitions** | |
+| `jira_get_issue_transitions` | Get available transitions |
+| `jira_transition_issue` | Change issue status (basic) |
+| `jira_transition_issue_interactive` | Change status with smart field handling |
+| **Attachments** | |
+| `jira_get_attachments` | List attachments on an issue |
+| `jira_add_attachment` | Add attachment to issue |
+| `jira_delete_attachment` | Delete attachment from issue |
+| **Issue Links** | |
+| `jira_get_issue_links` | Get linked issues |
+| `jira_create_issue_link` | Create link between issues |
+| `jira_delete_issue_link` | Delete issue link |
+| `jira_get_link_types` | Get available link types |
+| **Worklogs** | |
+| `jira_get_worklogs` | Get work logs on an issue |
+| `jira_add_worklog` | Add work log entry |
+| `jira_update_worklog` | Update work log entry |
+| `jira_delete_worklog` | Delete work log entry |
+| **Watchers** | |
+| `jira_get_watchers` | Get issue watchers |
+| `jira_add_watcher` | Add watcher to issue |
+| `jira_remove_watcher` | Remove watcher from issue |
+| **Subtasks & History** | |
+| `jira_get_subtasks` | Get subtasks of an issue |
+| `jira_create_subtask` | Create subtask for an issue |
+| `jira_get_issue_history` | Get issue change history |
 
-### Bitbucket Tools
+### Bitbucket Tools (11 tools)
 
-- `bitbucket_get_repositories`: List repositories
-- `bitbucket_get_repository`: Get specific repository
-- `bitbucket_create_repository`: Create new repository
-- `bitbucket_get_pull_requests`: List pull requests
-- `bitbucket_create_pull_request`: Create new pull request
-- `bitbucket_get_branches`: List branches
-- `bitbucket_get_commits`: List commits
-- `bitbucket_get_issues`: List repository issues
-- `bitbucket_create_issue`: Create new issue
+| Tool | Description |
+|------|-------------|
+| `bitbucket_get_repositories` | List repositories in workspace |
+| `bitbucket_get_repository` | Get specific repository details |
+| `bitbucket_create_repository` | Create new repository |
+| `bitbucket_get_pull_requests` | List pull requests |
+| `bitbucket_get_pull_request` | Get specific PR with diff |
+| `bitbucket_create_pull_request` | Create new pull request |
+| `bitbucket_get_branches` | List branches |
+| `bitbucket_get_commits` | List commits |
+| `bitbucket_get_issues` | List repository issues |
+| `bitbucket_create_issue` | Create new issue |
 
 ## Example Usage with AI Assistant
 
