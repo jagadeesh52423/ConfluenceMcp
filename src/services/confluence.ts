@@ -1,4 +1,4 @@
-import { ConfluenceClient } from '../confluence-client.js';
+import { ConfluenceClient } from '../clients/confluence-client.js';
 import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, SearchOptions } from '../types.js';
 import * as fs from 'fs';
 import * as path from 'path';

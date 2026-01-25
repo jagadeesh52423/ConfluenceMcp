@@ -1,4 +1,4 @@
-import { JiraClient } from '../jira-client.js';
+import { JiraClient } from '../clients/jira-client.js';
 import { JiraIssue, SearchOptions, JiraTransitionResponse, JiraRequiredField, JiraFieldSuggestion, FieldSuggestionRule } from '../types.js';
 
 export class JiraService {
