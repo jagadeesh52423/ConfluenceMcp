@@ -1,16 +1,28 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { confluenceConfig, getConfluenceAuth } from './config.js';
 
-export class ConfluenceClient {
-  private client: AxiosInstance;
-  private baseUrl: string;
+export interface ClientConfig {
+  baseUrl: string;
+  auth: string;
+  serviceName: string;
+}
 
-  constructor() {
-    this.baseUrl = `https://${confluenceConfig.domain}`;
+/**
+ * Base API client that provides common HTTP methods for all Atlassian services.
+ * Eliminates code duplication across confluence-client, jira-client, and atlassian-client.
+ */
+export abstract class BaseApiClient {
+  protected client: AxiosInstance;
+  protected baseUrl: string;
+  protected serviceName: string;
+
+  constructor(config: ClientConfig) {
+    this.baseUrl = config.baseUrl;
+    this.serviceName = config.serviceName;
+
     this.client = axios.create({
       baseURL: this.baseUrl,
       headers: {
-        'Authorization': `Basic ${getConfluenceAuth()}`,
+        'Authorization': `Basic ${config.auth}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
@@ -19,7 +31,7 @@ export class ConfluenceClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('Confluence API Error:', error.response?.data || error.message);
+        console.error(`${this.serviceName} API Error:`, error.response?.data || error.message);
         throw error;
       }
     );
@@ -53,5 +65,12 @@ export class ConfluenceClient {
       },
     });
     return response.data;
+  }
+
+  /**
+   * For Bitbucket which needs access to the raw axios instance for custom requests
+   */
+  protected getAxiosInstance(): AxiosInstance {
+    return this.client;
   }
 }
