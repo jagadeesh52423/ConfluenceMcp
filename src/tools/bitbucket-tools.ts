@@ -236,4 +236,152 @@ export const bitbucketTools: ToolDefinition[] = [
       required: ['repoName', 'title'],
     },
   },
+  {
+    name: 'bitbucket_get_pr_comments',
+    description: 'Get all comments for a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_add_pr_comment',
+    description: 'Add a comment to a Bitbucket pull request. Supports both general and inline (file/line) comments.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        content: {
+          type: 'string',
+          description: 'Comment content (Markdown supported)',
+        },
+        inlinePath: {
+          type: 'string',
+          description: 'File path for an inline comment (optional)',
+        },
+        inlineFrom: {
+          type: 'number',
+          description: 'Source side line number for inline comment (optional)',
+        },
+        inlineTo: {
+          type: 'number',
+          description: 'Destination side line number for inline comment (optional)',
+        },
+        parentId: {
+          type: 'number',
+          description: 'Parent comment ID to reply to (optional)',
+        },
+      },
+      required: ['repoName', 'prId', 'content'],
+    },
+  },
+  {
+    name: 'bitbucket_update_pr_comment',
+    description: 'Update an existing comment on a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        commentId: {
+          type: 'number',
+          description: 'The comment ID to update',
+        },
+        content: {
+          type: 'string',
+          description: 'New comment content',
+        },
+      },
+      required: ['repoName', 'prId', 'commentId', 'content'],
+    },
+  },
+  {
+    name: 'bitbucket_delete_pr_comment',
+    description: 'Delete a comment from a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        commentId: {
+          type: 'number',
+          description: 'The comment ID to delete',
+        },
+      },
+      required: ['repoName', 'prId', 'commentId'],
+    },
+  },
+  {
+    name: 'bitbucket_resolve_pr_comment',
+    description: 'Resolve a comment on a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        commentId: {
+          type: 'number',
+          description: 'The comment ID to resolve',
+        },
+      },
+      required: ['repoName', 'prId', 'commentId'],
+    },
+  },
+  {
+    name: 'bitbucket_unresolve_pr_comment',
+    description: 'Unresolve (reopen) a comment on a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        commentId: {
+          type: 'number',
+          description: 'The comment ID to unresolve',
+        },
+      },
+      required: ['repoName', 'prId', 'commentId'],
+    },
+  },
 ];

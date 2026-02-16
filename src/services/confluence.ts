@@ -98,7 +98,7 @@ export class ConfluenceService {
       data.ancestors = [{ id: parentId }];
     }
 
-    const page = await this.client.post<any>('/wiki/rest/api/content', data);
+    const page = await this.client.post<any>('/wiki/rest/api/content?expand=body.storage,version,space', data);
 
     return {
       id: page.id,
@@ -329,8 +329,9 @@ export class ConfluenceService {
           updatedContent += `\n\n${appendedMarkup}`;
         }
 
-        // Update the page with the new content
-        await this.updatePage(page.id, title, updatedContent, page.version);
+        // Update the page with the new content and return the updated version
+        const updatedPage = await this.updatePage(page.id, title, updatedContent, page.version);
+        return updatedPage;
       }
     }
 
