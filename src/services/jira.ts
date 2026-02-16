@@ -870,7 +870,16 @@ export class JiraService {
       const line = lines[i].trim();
 
       if (line === '') {
-        // Skip empty lines - let Claude handle spacing naturally
+        // Only add an empty paragraph for double blank lines (true paragraph breaks)
+        // Single blank lines are natural separators between block elements and don't need extra spacing
+        const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+        if (nextLine === '') {
+          const lastNode = content[content.length - 1];
+          const isLastEmpty = lastNode && lastNode.type === 'paragraph' && (!lastNode.content || lastNode.content.length === 0);
+          if (!isLastEmpty) {
+            content.push({ type: 'paragraph', content: [] });
+          }
+        }
         continue;
       }
 
@@ -1181,6 +1190,12 @@ export class JiraService {
       { regex: /\{\{(.+?)\}\}/g, type: 'code' },      // {{code}} (Confluence/Jira wiki style)
     ];
 
+    // Link patterns (markdown [text](url) and Jira wiki [text|url])
+    const linkPatterns = [
+      { regex: /\[([^\]]+?)\]\(([^)]+?)\)/g },        // [text](url) - markdown style
+      { regex: /\[([^|\]]+?)\|([^\]]+?)\]/g },         // [text|url] - Jira wiki style
+    ];
+
     let matches: any[] = [];
 
     // Find all formatting matches
@@ -1193,6 +1208,22 @@ export class JiraService {
           end: match.index + match[0].length,
           text: match[1],
           type: pattern.type,
+          fullMatch: match[0]
+        });
+      }
+    });
+
+    // Find all link matches
+    linkPatterns.forEach(pattern => {
+      let match;
+      const regex = new RegExp(pattern.regex.source, 'g');
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          text: match[1],
+          type: 'link',
+          href: match[2],
           fullMatch: match[0]
         });
       }
@@ -1255,11 +1286,19 @@ export class JiraService {
       }
 
       // Add formatted text
-      result.push({
-        type: 'text',
-        text: match.text,
-        marks: [{ type: match.type }]
-      });
+      if (match.type === 'link') {
+        result.push({
+          type: 'text',
+          text: match.text,
+          marks: [{ type: 'link', attrs: { href: match.href } }]
+        });
+      } else {
+        result.push({
+          type: 'text',
+          text: match.text,
+          marks: [{ type: match.type }]
+        });
+      }
 
       currentPos = match.end;
     });

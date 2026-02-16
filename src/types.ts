@@ -78,6 +78,20 @@ export interface ConfluenceComment {
   version: number;
 }
 
+export interface BitbucketPRComment {
+  id: number;
+  content: string;
+  author: string;
+  authorAccountId?: string;
+  created: string;
+  updated: string;
+  inline?: {
+    path: string;
+    from?: number;
+    to?: number;
+  };
+}
+
 export interface BitbucketRepository {
   name: string;
   fullName: string;

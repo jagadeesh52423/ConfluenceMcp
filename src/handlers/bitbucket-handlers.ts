@@ -185,4 +185,114 @@ export class BitbucketHandlers {
       });
     }
   }
+
+  async getPRComments(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    try {
+      const comments = await this.service.getPRComments(repoName, prId);
+      return jsonResponse(comments);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get PR comments',
+        params: { Repository: repoName, 'PR ID': prId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
+
+  async addPRComment(args: {
+    repoName: string;
+    prId: number;
+    content: string;
+    inlinePath?: string;
+    inlineFrom?: number;
+    inlineTo?: number;
+    parentId?: number;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, content, inlinePath, inlineFrom, inlineTo, parentId } = args;
+    try {
+      const inline = inlinePath ? { path: inlinePath, from: inlineFrom, to: inlineTo } : undefined;
+      const comment = await this.service.addPRComment(repoName, prId, content, inline, parentId);
+      return jsonResponse(comment);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to add PR comment',
+        params: { Repository: repoName, 'PR ID': prId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
+
+  async updatePRComment(args: {
+    repoName: string;
+    prId: number;
+    commentId: number;
+    content: string;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, commentId, content } = args;
+    try {
+      const comment = await this.service.updatePRComment(repoName, prId, commentId, content);
+      return jsonResponse(comment);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to update PR comment',
+        params: { Repository: repoName, 'PR ID': prId, 'Comment ID': commentId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
+
+  async deletePRComment(args: {
+    repoName: string;
+    prId: number;
+    commentId: number;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, commentId } = args;
+    try {
+      await this.service.deletePRComment(repoName, prId, commentId);
+      return successResponse(`Comment ${commentId} deleted from PR #${prId} in ${repoName}.`);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to delete PR comment',
+        params: { Repository: repoName, 'PR ID': prId, 'Comment ID': commentId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
+
+  async resolvePRComment(args: {
+    repoName: string;
+    prId: number;
+    commentId: number;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, commentId } = args;
+    try {
+      const comment = await this.service.resolvePRComment(repoName, prId, commentId);
+      return jsonResponse(comment);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to resolve PR comment',
+        params: { Repository: repoName, 'PR ID': prId, 'Comment ID': commentId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
+
+  async unresolvePRComment(args: {
+    repoName: string;
+    prId: number;
+    commentId: number;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, commentId } = args;
+    try {
+      const comment = await this.service.unresolvePRComment(repoName, prId, commentId);
+      return jsonResponse(comment);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to unresolve PR comment',
+        params: { Repository: repoName, 'PR ID': prId, 'Comment ID': commentId },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      });
+    }
+  }
 }

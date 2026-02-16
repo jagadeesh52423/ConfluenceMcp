@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { bitbucketConfig, getBitbucketAuth } from '../config.js';
-import { BitbucketRepository, SearchOptions } from '../types.js';
+import { BitbucketRepository, BitbucketPRComment, SearchOptions } from '../types.js';
 
 export class BitbucketService {
   private client: AxiosInstance;
@@ -241,5 +241,117 @@ export class BitbucketService {
 
     const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/issues`, data);
     return response.data;
+  }
+
+  async getPRComments(repoName: string, prId: number): Promise<BitbucketPRComment[]> {
+    const response = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments`,
+      { params: { pagelen: 100 } }
+    );
+    return response.data.values.map((c: any) => ({
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? {
+        path: c.inline.path,
+        from: c.inline.from,
+        to: c.inline.to,
+      } : undefined,
+    }));
+  }
+
+  async addPRComment(
+    repoName: string,
+    prId: number,
+    content: string,
+    inline?: { path: string; from?: number; to?: number },
+    parentId?: number
+  ): Promise<BitbucketPRComment> {
+    const data: any = { content: { raw: content } };
+    if (inline) {
+      data.inline = inline;
+    }
+    if (parentId) {
+      data.parent = { id: parentId };
+    }
+    const response = await this.client.post(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments`,
+      data
+    );
+    const c = response.data;
+    return {
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
+    };
+  }
+
+  async updatePRComment(
+    repoName: string,
+    prId: number,
+    commentId: number,
+    content: string
+  ): Promise<BitbucketPRComment> {
+    const response = await this.client.put(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
+      { content: { raw: content } }
+    );
+    const c = response.data;
+    return {
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
+    };
+  }
+
+  async deletePRComment(repoName: string, prId: number, commentId: number): Promise<void> {
+    await this.client.delete(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`
+    );
+  }
+
+  async resolvePRComment(repoName: string, prId: number, commentId: number): Promise<BitbucketPRComment> {
+    const response = await this.client.put(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
+      { resolution: { type: 'RESOLVED' } }
+    );
+    const c = response.data;
+    return {
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
+    };
+  }
+
+  async unresolvePRComment(repoName: string, prId: number, commentId: number): Promise<BitbucketPRComment> {
+    const response = await this.client.put(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
+      { resolution: null }
+    );
+    const c = response.data;
+    return {
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
+    };
   }
 }

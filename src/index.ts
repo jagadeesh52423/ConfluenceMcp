@@ -221,6 +221,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
       case 'bitbucket_create_issue':
         return bitbucketHandlers.createIssue(args as any);
 
+      case 'bitbucket_get_pr_comments':
+        return bitbucketHandlers.getPRComments(args as any);
+
+      case 'bitbucket_add_pr_comment':
+        return bitbucketHandlers.addPRComment(args as any);
+
+      case 'bitbucket_update_pr_comment':
+        return bitbucketHandlers.updatePRComment(args as any);
+
+      case 'bitbucket_delete_pr_comment':
+        return bitbucketHandlers.deletePRComment(args as any);
+
+      case 'bitbucket_resolve_pr_comment':
+        return bitbucketHandlers.resolvePRComment(args as any);
+
+      case 'bitbucket_unresolve_pr_comment':
+        return bitbucketHandlers.unresolvePRComment(args as any);
+
       default:
         throw new Error(ERROR_MESSAGES.UNKNOWN_TOOL(name));
     }
