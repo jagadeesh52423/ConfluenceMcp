@@ -47,7 +47,7 @@ export class JiraService {
       jql,
       maxResults: limit,
       startAt,
-      fields: 'summary,description,status,assignee,created,updated'
+      fields: 'summary,description,status,assignee,labels,created,updated'
     };
 
     const response = await this.client.get<any>('/rest/api/3/search/jql', params);
@@ -59,6 +59,7 @@ export class JiraService {
       description: this.extractTextFromADF(issue.fields.description),
       status: issue.fields.status?.name || '',
       assignee: issue.fields.assignee?.displayName || '',
+      labels: issue.fields.labels || [],
       created: issue.fields.created || '',
       updated: issue.fields.updated || ''
     }));
@@ -66,7 +67,7 @@ export class JiraService {
 
   async getIssue(issueKey: string): Promise<JiraIssue> {
     const params = {
-      fields: ['summary', 'description', 'status', 'assignee', 'created', 'updated']
+      fields: ['summary', 'description', 'status', 'assignee', 'labels', 'created', 'updated']
     };
 
     const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, params);
@@ -78,6 +79,7 @@ export class JiraService {
       description: this.extractTextFromADF(issue.fields.description),
       status: issue.fields.status?.name || '',
       assignee: issue.fields.assignee?.displayName || '',
+      labels: issue.fields.labels || [],
       created: issue.fields.created || '',
       updated: issue.fields.updated || ''
     };
@@ -567,6 +569,15 @@ export class JiraService {
   }
 
   // Label Methods
+
+  async getLabels(query?: string, maxResults: number = 50): Promise<string[]> {
+    const params: any = { maxResults };
+    if (query) {
+      params.query = query;
+    }
+    const response = await this.client.get<any>('/rest/api/3/label', params);
+    return response.values || [];
+  }
 
   async addLabels(issueKey: string, labels: string[]): Promise<void> {
     const data = {

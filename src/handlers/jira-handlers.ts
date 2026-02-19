@@ -557,6 +557,20 @@ export class JiraHandlers {
     }
   }
 
+  async getLabels(args: { query?: string; maxResults?: number }): Promise<ToolResponse> {
+    const { query, maxResults } = args;
+    try {
+      const labels = await this.service.getLabels(query, maxResults);
+      return jsonResponse(labels);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get labels',
+        params: { Query: query || 'none', 'Max Results': maxResults || 50 },
+        tip: 'Check your Jira permissions and API access.',
+      });
+    }
+  }
+
   async addLabels(args: { issueKey: string; labels: string[] }): Promise<ToolResponse> {
     const { issueKey, labels } = args;
     try {

@@ -547,6 +547,24 @@ export const jiraTools: ToolDefinition[] = [
     },
   },
   {
+    name: 'jira_get_labels',
+    description: 'Get available labels in Jira. Optionally filter by a search query.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Optional text to filter labels (prefix match)',
+        },
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of labels to return (default: 50)',
+          default: 50,
+        },
+      },
+    },
+  },
+  {
     name: 'jira_add_labels',
     description: 'Add labels to a Jira issue',
     inputSchema: {

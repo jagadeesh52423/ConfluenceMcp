@@ -190,6 +190,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
       case 'jira_get_issue_history':
         return jiraHandlers.getIssueHistory(args as any);
 
+      case 'jira_get_labels':
+        return jiraHandlers.getLabels(args as any);
+
       case 'jira_add_labels':
         return jiraHandlers.addLabels(args as any);
 

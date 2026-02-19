@@ -34,6 +34,7 @@ export interface JiraIssue {
   description: string;
   status: string;
   assignee?: string;
+  labels?: string[];
   created: string;
   updated: string;
 }
