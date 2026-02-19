@@ -35,7 +35,7 @@ export class JiraService {
   }
 
   async searchIssues(options: SearchOptions = {}): Promise<JiraIssue[]> {
-    const { query, assignee, status, project, labels, jql: rawJql, limit = 50, startAt = 0 } = options;
+    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql: rawJql, fields: extraFields, limit = 50, startAt = 0 } = options;
 
     let jql: string;
 
@@ -61,6 +61,18 @@ export class JiraService {
       if (labels && labels.length > 0) {
         conditions.push(labels.map(l => `labels = "${l}"`).join(' AND '));
       }
+      if (reporter) {
+        conditions.push(`reporter = ${reporter}`);
+      }
+      if (createdAfter) {
+        // Support relative days (e.g., "10d") or absolute dates (e.g., "2026-01-15")
+        const dateValue = /^\d+d$/.test(createdAfter) ? `-${createdAfter}` : createdAfter;
+        conditions.push(`created >= "${dateValue}"`);
+      }
+      if (updatedAfter) {
+        const dateValue = /^\d+d$/.test(updatedAfter) ? `-${updatedAfter}` : updatedAfter;
+        conditions.push(`updated >= "${dateValue}"`);
+      }
 
       // Only apply 90-day bound when no specific filters are provided
       if (conditions.length === 0) {
@@ -70,26 +82,44 @@ export class JiraService {
       jql = `${conditions.join(' AND ')} ORDER BY updated DESC`;
     }
 
+    const defaultFields = ['summary', 'description', 'status', 'assignee', 'labels', 'created', 'updated'];
+    const requestFields = extraFields && extraFields.length > 0
+      ? [...new Set(extraFields)]
+      : defaultFields;
+
     const params = {
       jql,
       maxResults: limit,
       startAt,
-      fields: 'summary,description,status,assignee,labels,created,updated'
+      fields: requestFields.join(',')
     };
 
     const response = await this.client.get<any>('/rest/api/3/search/jql', params);
 
-    return response.issues.map((issue: any) => ({
-      id: issue.id,
-      key: issue.key,
-      summary: issue.fields.summary || '',
-      description: this.extractTextFromADF(issue.fields.description),
-      status: issue.fields.status?.name || '',
-      assignee: issue.fields.assignee?.displayName || '',
-      labels: issue.fields.labels || [],
-      created: issue.fields.created || '',
-      updated: issue.fields.updated || ''
-    }));
+    return response.issues.map((issue: any) => {
+      const result: any = {
+        key: issue.key,
+      };
+
+      for (const field of requestFields) {
+        const value = issue.fields[field];
+        if (value === undefined || value === null) {
+          result[field] = null;
+        } else if (field === 'description') {
+          result[field] = this.extractTextFromADF(value);
+        } else if (typeof value === 'object' && !Array.isArray(value)) {
+          result[field] = value.name || value.displayName || value.value || value;
+        } else if (Array.isArray(value)) {
+          result[field] = value.map((v: any) =>
+            typeof v === 'object' ? (v.name || v.displayName || v.value || v) : v
+          );
+        } else {
+          result[field] = value;
+        }
+      }
+
+      return result;
+    });
   }
 
   async getIssue(issueKey: string): Promise<JiraIssue> {
@@ -593,6 +623,27 @@ export class JiraService {
 
   async removeWatcher(issueKey: string, accountId: string): Promise<void> {
     await this.client.delete(`/rest/api/3/issue/${issueKey}/watchers?accountId=${accountId}`);
+  }
+
+  // Field Discovery Methods
+
+  async getFields(type?: 'standard' | 'custom'): Promise<any[]> {
+    const response = await this.client.get<any>('/rest/api/3/field');
+
+    let fields = response.map((f: any) => ({
+      id: f.id,
+      name: f.name,
+      custom: f.custom || false,
+      schema: f.schema?.type || null,
+    }));
+
+    if (type === 'standard') {
+      fields = fields.filter((f: any) => !f.custom);
+    } else if (type === 'custom') {
+      fields = fields.filter((f: any) => f.custom);
+    }
+
+    return fields.sort((a: any, b: any) => a.name.localeCompare(b.name));
   }
 
   // Label Methods

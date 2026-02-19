@@ -109,7 +109,11 @@ export interface SearchOptions {
   status?: string;
   project?: string;
   labels?: string[];
+  reporter?: string;
+  createdAfter?: string;
+  updatedAfter?: string;
   jql?: string;
+  fields?: string[];
   limit?: number;
   startAt?: number;
   expand?: string[];

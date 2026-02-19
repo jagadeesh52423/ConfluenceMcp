@@ -32,9 +32,26 @@ export const jiraTools: ToolDefinition[] = [
           items: { type: 'string' },
           description: 'Filter by labels (all must match)',
         },
+        reporter: {
+          type: 'string',
+          description: 'Filter by reporter. Use "currentUser()" for issues you reported, or an account ID',
+        },
+        createdAfter: {
+          type: 'string',
+          description: 'Show issues created after this date. Use relative days (e.g., "10d" for last 10 days, "30d" for last 30 days) or absolute date (e.g., "2026-01-15")',
+        },
+        updatedAfter: {
+          type: 'string',
+          description: 'Show issues updated after this date. Use relative days (e.g., "7d" for last 7 days) or absolute date (e.g., "2026-01-15")',
+        },
         jql: {
           type: 'string',
           description: 'Raw JQL query (overrides all other filters when provided)',
+        },
+        fields: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Fields to include in the response. When specified, ONLY these fields are returned (plus issue key). When omitted, defaults to: summary, description, status, assignee, labels, created, updated. Use jira_get_fields to discover all available field IDs before using this parameter.',
         },
         limit: {
           type: 'number',
@@ -565,6 +582,20 @@ export const jiraTools: ToolDefinition[] = [
         },
       },
       required: ['issueKey'],
+    },
+  },
+  {
+    name: 'jira_get_fields',
+    description: 'Get available fields in Jira. Use this to discover field IDs for use with jira_search_issues fields parameter.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['standard', 'custom', 'all'],
+          description: 'Filter by field type: "standard" for built-in fields, "custom" for custom fields, "all" for both (default: "all")',
+        },
+      },
     },
   },
   {

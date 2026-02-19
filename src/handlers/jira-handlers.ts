@@ -21,12 +21,16 @@ export class JiraHandlers {
     status?: string;
     project?: string;
     labels?: string[];
+    reporter?: string;
+    createdAfter?: string;
+    updatedAfter?: string;
     jql?: string;
+    fields?: string[];
     limit?: number;
   }): Promise<ToolResponse> {
-    const { query, assignee, status, project, labels, jql, limit } = args;
+    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit } = args;
     try {
-      const issues = await this.service.searchIssues({ query, assignee, status, project, labels, jql, limit });
+      const issues = await this.service.searchIssues({ query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit });
       return jsonResponse(issues);
     } catch (error: any) {
       return errorResponse(error, {
@@ -561,6 +565,20 @@ export class JiraHandlers {
         operation: 'Failed to get issue history',
         params: { 'Issue Key': issueKey },
         tip: ERROR_TIPS.JIRA_ISSUE_VIEW,
+      });
+    }
+  }
+
+  async getFields(args: { type?: string }): Promise<ToolResponse> {
+    const { type } = args;
+    try {
+      const filterType = (type === 'standard' || type === 'custom') ? type : undefined;
+      const fields = await this.service.getFields(filterType);
+      return jsonResponse(fields);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get Jira fields',
+        tip: 'Check your Jira permissions and API access.',
       });
     }
   }
