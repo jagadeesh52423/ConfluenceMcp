@@ -546,4 +546,42 @@ export const jiraTools: ToolDefinition[] = [
       required: ['issueKey'],
     },
   },
+  {
+    name: 'jira_add_labels',
+    description: 'Add labels to a Jira issue',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueKey: {
+          type: 'string',
+          description: 'The issue key (e.g., PROJ-123)',
+        },
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of label strings to add',
+        },
+      },
+      required: ['issueKey', 'labels'],
+    },
+  },
+  {
+    name: 'jira_remove_labels',
+    description: 'Remove labels from a Jira issue',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueKey: {
+          type: 'string',
+          description: 'The issue key (e.g., PROJ-123)',
+        },
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of label strings to remove',
+        },
+      },
+      required: ['issueKey', 'labels'],
+    },
+  },
 ];

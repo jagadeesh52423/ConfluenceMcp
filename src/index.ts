@@ -190,6 +190,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
       case 'jira_get_issue_history':
         return jiraHandlers.getIssueHistory(args as any);
 
+      case 'jira_add_labels':
+        return jiraHandlers.addLabels(args as any);
+
+      case 'jira_remove_labels':
+        return jiraHandlers.removeLabels(args as any);
+
       // Bitbucket Tools
       case 'bitbucket_get_repositories':
         return bitbucketHandlers.getRepositories(args as any);

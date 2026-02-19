@@ -566,6 +566,26 @@ export class JiraService {
     await this.client.delete(`/rest/api/3/issue/${issueKey}/watchers?accountId=${accountId}`);
   }
 
+  // Label Methods
+
+  async addLabels(issueKey: string, labels: string[]): Promise<void> {
+    const data = {
+      update: {
+        labels: labels.map(label => ({ add: label }))
+      }
+    };
+    await this.client.put(`/rest/api/3/issue/${issueKey}`, data);
+  }
+
+  async removeLabels(issueKey: string, labels: string[]): Promise<void> {
+    const data = {
+      update: {
+        labels: labels.map(label => ({ remove: label }))
+      }
+    };
+    await this.client.put(`/rest/api/3/issue/${issueKey}`, data);
+  }
+
   // Sub-task Methods
 
   async getSubTasks(issueKey: string): Promise<any[]> {

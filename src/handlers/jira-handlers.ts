@@ -556,4 +556,38 @@ export class JiraHandlers {
       });
     }
   }
+
+  async addLabels(args: { issueKey: string; labels: string[] }): Promise<ToolResponse> {
+    const { issueKey, labels } = args;
+    try {
+      await this.service.addLabels(issueKey, labels);
+      return successResponse(
+        `${ICONS.SUCCESS} Labels added to ${issueKey}\n\n` +
+        `${ICONS.LABELS} **Added:** ${labels.join(', ')}`
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to add labels to ${issueKey}`,
+        params: { 'Issue Key': issueKey, Labels: labels.join(', ') },
+        tip: ERROR_TIPS.JIRA_ISSUE_EDIT,
+      });
+    }
+  }
+
+  async removeLabels(args: { issueKey: string; labels: string[] }): Promise<ToolResponse> {
+    const { issueKey, labels } = args;
+    try {
+      await this.service.removeLabels(issueKey, labels);
+      return successResponse(
+        `${ICONS.SUCCESS} Labels removed from ${issueKey}\n\n` +
+        `${ICONS.LABELS} **Removed:** ${labels.join(', ')}`
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to remove labels from ${issueKey}`,
+        params: { 'Issue Key': issueKey, Labels: labels.join(', ') },
+        tip: ERROR_TIPS.JIRA_ISSUE_EDIT,
+      });
+    }
+  }
 }
