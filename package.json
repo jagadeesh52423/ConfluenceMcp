@@ -1,6 +1,6 @@
 {
   "name": "@jagadeesh52423/atlassian-mcp-server",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "MCP server for Atlassian APIs (Jira, Confluence, Bitbucket)",
   "main": "dist/index.js",
   "type": "module",
