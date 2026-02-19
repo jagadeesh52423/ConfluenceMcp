@@ -41,15 +41,15 @@ export class JiraHandlers {
     }
   }
 
-  async getIssue(args: { issueKey: string }): Promise<ToolResponse> {
-    const { issueKey } = args;
+  async getIssue(args: { issueKey: string; fields?: string[] }): Promise<ToolResponse> {
+    const { issueKey, fields } = args;
     try {
-      const issue = await this.service.getIssue(issueKey);
+      const issue = await this.service.getIssue(issueKey, fields);
       return jsonResponse(issue);
     } catch (error: any) {
       return errorResponse(error, {
         operation: 'Failed to get Jira issue',
-        params: { 'Issue Key': issueKey },
+        params: { 'Issue Key': issueKey, Fields: fields?.join(', ') || 'default' },
         tip: ERROR_TIPS.JIRA_ISSUE_VIEW,
       });
     }

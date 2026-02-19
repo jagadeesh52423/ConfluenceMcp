@@ -122,24 +122,41 @@ export class JiraService {
     });
   }
 
-  async getIssue(issueKey: string): Promise<JiraIssue> {
+  async getIssue(issueKey: string, fields?: string[]): Promise<any> {
+    const defaultFields = ['summary', 'description', 'status', 'assignee', 'labels', 'created', 'updated'];
+    const requestFields = fields && fields.length > 0
+      ? [...new Set(fields)]
+      : defaultFields;
+
     const params = {
-      fields: ['summary', 'description', 'status', 'assignee', 'labels', 'created', 'updated']
+      fields: requestFields
     };
 
     const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, params);
 
-    return {
+    const result: any = {
       id: issue.id,
       key: issue.key,
-      summary: issue.fields.summary || '',
-      description: this.extractTextFromADF(issue.fields.description),
-      status: issue.fields.status?.name || '',
-      assignee: issue.fields.assignee?.displayName || '',
-      labels: issue.fields.labels || [],
-      created: issue.fields.created || '',
-      updated: issue.fields.updated || ''
     };
+
+    for (const field of requestFields) {
+      const value = issue.fields[field];
+      if (value === undefined || value === null) {
+        result[field] = null;
+      } else if (field === 'description') {
+        result[field] = this.extractTextFromADF(value);
+      } else if (typeof value === 'object' && !Array.isArray(value)) {
+        result[field] = value.name || value.displayName || value.value || value;
+      } else if (Array.isArray(value)) {
+        result[field] = value.map((v: any) =>
+          typeof v === 'object' ? (v.name || v.displayName || v.value || v) : v
+        );
+      } else {
+        result[field] = value;
+      }
+    }
+
+    return result;
   }
 
   async createIssue(

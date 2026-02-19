@@ -63,13 +63,18 @@ export const jiraTools: ToolDefinition[] = [
   },
   {
     name: 'jira_get_issue',
-    description: 'Get a specific Jira issue by key',
+    description: 'Get a specific Jira issue by key. Optionally specify which fields to return.',
     inputSchema: {
       type: 'object',
       properties: {
         issueKey: {
           type: 'string',
           description: 'The issue key (e.g., PROJ-123)',
+        },
+        fields: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Fields to include in the response. When specified, ONLY these fields are returned (plus issue id and key). When omitted, defaults to: summary, description, status, assignee, labels, created, updated. Use jira_get_fields to discover all available field IDs.',
         },
       },
       required: ['issueKey'],
