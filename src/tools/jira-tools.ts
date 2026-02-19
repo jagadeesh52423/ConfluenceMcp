@@ -7,13 +7,34 @@ import { ToolDefinition } from './confluence-tools.js';
 export const jiraTools: ToolDefinition[] = [
   {
     name: 'jira_search_issues',
-    description: 'Search Jira issues by text query',
+    description: 'Search Jira issues with flexible filtering. Use individual filters (assignee, status, project, labels) or provide raw JQL for advanced queries.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
           description: 'Text to search for in issues',
+        },
+        assignee: {
+          type: 'string',
+          description: 'Filter by assignee. Use "currentUser()" for your own issues, or an account ID',
+        },
+        status: {
+          type: 'string',
+          description: 'Filter by status name (e.g., "To Do", "In Progress", "Done")',
+        },
+        project: {
+          type: 'string',
+          description: 'Filter by project key (e.g., "PROJ")',
+        },
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Filter by labels (all must match)',
+        },
+        jql: {
+          type: 'string',
+          description: 'Raw JQL query (overrides all other filters when provided)',
         },
         limit: {
           type: 'number',

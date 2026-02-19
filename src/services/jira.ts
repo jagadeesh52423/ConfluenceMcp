@@ -35,12 +35,39 @@ export class JiraService {
   }
 
   async searchIssues(options: SearchOptions = {}): Promise<JiraIssue[]> {
-    const { query, limit = 50, startAt = 0 } = options;
+    const { query, assignee, status, project, labels, jql: rawJql, limit = 50, startAt = 0 } = options;
 
-    // Create bounded JQL query (Jira requires bounded queries now)
-    let jql = 'created >= -90d ORDER BY created DESC';
-    if (query) {
-      jql = `text ~ "${query}" AND created >= -90d ORDER BY created DESC`;
+    let jql: string;
+
+    if (rawJql) {
+      // Use raw JQL directly when provided
+      jql = rawJql;
+    } else {
+      // Build JQL from individual filters
+      const conditions: string[] = [];
+
+      if (query) {
+        conditions.push(`text ~ "${query}"`);
+      }
+      if (assignee) {
+        conditions.push(`assignee = ${assignee}`);
+      }
+      if (status) {
+        conditions.push(`status = "${status}"`);
+      }
+      if (project) {
+        conditions.push(`project = "${project}"`);
+      }
+      if (labels && labels.length > 0) {
+        conditions.push(labels.map(l => `labels = "${l}"`).join(' AND '));
+      }
+
+      // Only apply 90-day bound when no specific filters are provided
+      if (conditions.length === 0) {
+        conditions.push('created >= -90d');
+      }
+
+      jql = `${conditions.join(' AND ')} ORDER BY updated DESC`;
     }
 
     const params = {

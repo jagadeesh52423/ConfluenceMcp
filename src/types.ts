@@ -105,6 +105,11 @@ export interface BitbucketRepository {
 
 export interface SearchOptions {
   query?: string;
+  assignee?: string;
+  status?: string;
+  project?: string;
+  labels?: string[];
+  jql?: string;
   limit?: number;
   startAt?: number;
   expand?: string[];

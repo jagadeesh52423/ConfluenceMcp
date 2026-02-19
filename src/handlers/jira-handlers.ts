@@ -15,15 +15,23 @@ import { ICONS } from '../constants.js';
 export class JiraHandlers {
   constructor(private service: JiraService) {}
 
-  async searchIssues(args: { query?: string; limit?: number }): Promise<ToolResponse> {
-    const { query, limit } = args;
+  async searchIssues(args: {
+    query?: string;
+    assignee?: string;
+    status?: string;
+    project?: string;
+    labels?: string[];
+    jql?: string;
+    limit?: number;
+  }): Promise<ToolResponse> {
+    const { query, assignee, status, project, labels, jql, limit } = args;
     try {
-      const issues = await this.service.searchIssues({ query, limit });
+      const issues = await this.service.searchIssues({ query, assignee, status, project, labels, jql, limit });
       return jsonResponse(issues);
     } catch (error: any) {
       return errorResponse(error, {
         operation: 'Failed to search Jira issues',
-        params: { Query: query || 'none', Limit: limit || 50 },
+        params: { Query: query || 'none', Assignee: assignee || 'none', JQL: jql || 'none', Limit: limit || 50 },
         tip: ERROR_TIPS.JIRA_SEARCH,
       });
     }
