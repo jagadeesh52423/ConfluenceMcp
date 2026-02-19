@@ -129,7 +129,7 @@ export class JiraService {
       : defaultFields;
 
     const params = {
-      fields: requestFields
+      fields: requestFields.join(',')
     };
 
     const issue = await this.client.get<any>(`/rest/api/3/issue/${issueKey}`, params);
