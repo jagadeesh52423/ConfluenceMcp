@@ -630,4 +630,255 @@ export class JiraHandlers {
       });
     }
   }
+
+  async getAgileBoards(args: { name?: string; type?: string; projectKeyOrId?: string }): Promise<ToolResponse> {
+    try {
+      const boards = await this.service.getAgileBoards(args);
+      return jsonResponse(boards);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get agile boards',
+        params: { Name: args.name || 'all', Type: args.type || 'all', Project: args.projectKeyOrId || 'all' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async getBoardIssues(args: { boardId: number; jql?: string; maxResults?: number; startAt?: number }): Promise<ToolResponse> {
+    const { boardId, jql, maxResults, startAt } = args;
+    try {
+      const result = await this.service.getBoardIssues(boardId, { jql, maxResults, startAt });
+      return jsonResponse(result);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get board issues',
+        params: { 'Board ID': boardId, JQL: jql || 'none' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async getSprints(args: { boardId: number; state?: string }): Promise<ToolResponse> {
+    const { boardId, state } = args;
+    try {
+      const sprints = await this.service.getSprints(boardId, state);
+      return jsonResponse(sprints);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get sprints',
+        params: { 'Board ID': boardId, State: state || 'all' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async getSprintIssues(args: { sprintId: number; jql?: string; maxResults?: number; startAt?: number }): Promise<ToolResponse> {
+    const { sprintId, jql, maxResults, startAt } = args;
+    try {
+      const result = await this.service.getSprintIssues(sprintId, { jql, maxResults, startAt });
+      return jsonResponse(result);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get sprint issues',
+        params: { 'Sprint ID': sprintId, JQL: jql || 'none' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async batchCreateIssues(args: { issues: Array<{ projectKey: string; summary: string; description: string; issueType?: string; additionalFields?: Record<string, any> }> }): Promise<ToolResponse> {
+    const { issues } = args;
+    try {
+      const result = await this.service.batchCreateIssues(issues);
+      const successCount = result.issues?.length || 0;
+      const errorCount = result.errors?.length || 0;
+      return successResponse(
+        `${ICONS.SUCCESS} Batch create completed: ${successCount} created, ${errorCount} errors\n\n${JSON.stringify(result, null, 2)}`
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to batch create issues',
+        params: { 'Issue Count': issues.length },
+        tip: ERROR_TIPS.JIRA_BATCH,
+      });
+    }
+  }
+
+  async getDevStatus(args: { issueId: string; applicationType?: string; dataType?: string }): Promise<ToolResponse> {
+    const { issueId, applicationType, dataType } = args;
+    try {
+      const result = await this.service.getDevStatus(issueId, applicationType, dataType);
+      return jsonResponse(result);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get dev status',
+        params: { 'Issue ID': issueId, 'Application Type': applicationType || 'all', 'Data Type': dataType || 'all' },
+        tip: ERROR_TIPS.JIRA_DEV_STATUS,
+      });
+    }
+  }
+
+  async deleteIssue(args: { issueKey: string; deleteSubtasks?: boolean }): Promise<ToolResponse> {
+    const { issueKey, deleteSubtasks } = args;
+    try {
+      await this.service.deleteIssue(issueKey, deleteSubtasks);
+      return successResponse(
+        `${ICONS.SUCCESS} Issue ${issueKey} deleted successfully` +
+        (deleteSubtasks ? ' (including subtasks)' : '')
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to delete issue ${issueKey}`,
+        params: { 'Issue Key': issueKey, 'Delete Subtasks': deleteSubtasks || false },
+        tip: ERROR_TIPS.JIRA_DELETE,
+      });
+    }
+  }
+
+  async lookupUser(args: { query: string }): Promise<ToolResponse> {
+    const { query } = args;
+    try {
+      const users = await this.service.getUsersByQuery(query);
+      return jsonResponse(users.map((u: any) => ({
+        accountId: u.accountId,
+        displayName: u.displayName,
+        emailAddress: u.emailAddress || null,
+        active: u.active,
+      })));
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to look up user',
+        params: { Query: query },
+        tip: 'Check your Jira permissions. Search by display name or email address.',
+      });
+    }
+  }
+
+  async getIssueTypes(args: { projectKey: string }): Promise<ToolResponse> {
+    const { projectKey } = args;
+    try {
+      const issueTypes = await this.service.getIssueTypes(projectKey);
+      return jsonResponse(issueTypes);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get issue types',
+        params: { 'Project Key': projectKey },
+        tip: 'Check if the project key exists and you have permission to view it.',
+      });
+    }
+  }
+
+  async createSprint(args: { boardId: number; name: string; startDate?: string; endDate?: string; goal?: string }): Promise<ToolResponse> {
+    const { boardId, name, startDate, endDate, goal } = args;
+    try {
+      const sprint = await this.service.createSprint(boardId, name, { startDate, endDate, goal });
+      return successResponse(
+        `${ICONS.SUCCESS} Sprint created successfully\n\n` +
+        `**ID:** ${sprint.id}\n` +
+        `**Name:** ${sprint.name}\n` +
+        `**State:** ${sprint.state}\n` +
+        (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
+        (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
+        (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to create sprint',
+        params: { 'Board ID': boardId, Name: name },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async updateSprint(args: { sprintId: number; name?: string; state?: string; startDate?: string; endDate?: string; goal?: string }): Promise<ToolResponse> {
+    const { sprintId, name, state, startDate, endDate, goal } = args;
+    try {
+      const sprint = await this.service.updateSprint(sprintId, { name, state, startDate, endDate, goal });
+      return successResponse(
+        `${ICONS.SUCCESS} Sprint ${sprintId} updated successfully\n\n` +
+        `**Name:** ${sprint.name}\n` +
+        `**State:** ${sprint.state}\n` +
+        (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
+        (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
+        (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to update sprint ${sprintId}`,
+        params: { 'Sprint ID': sprintId, Name: name || 'unchanged', State: state || 'unchanged' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async getProjectVersions(args: { projectKey: string }): Promise<ToolResponse> {
+    const { projectKey } = args;
+    try {
+      const versions = await this.service.getProjectVersions(projectKey);
+      return jsonResponse(versions);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get project versions',
+        params: { 'Project Key': projectKey },
+        tip: 'Check if the project key exists and you have permission to view versions.',
+      });
+    }
+  }
+
+  async createVersion(args: { projectKey: string; name: string; description?: string; startDate?: string; releaseDate?: string; released?: boolean }): Promise<ToolResponse> {
+    const { projectKey, name, description, startDate, releaseDate, released } = args;
+    try {
+      const version = await this.service.createVersion(projectKey, name, { description, startDate, releaseDate, released });
+      return successResponse(
+        `${ICONS.SUCCESS} Version created successfully\n\n` +
+        `**ID:** ${version.id}\n` +
+        `**Name:** ${version.name}\n` +
+        `**Released:** ${version.released}\n` +
+        (version.description ? `**Description:** ${version.description}\n` : '') +
+        (version.startDate ? `**Start Date:** ${version.startDate}\n` : '') +
+        (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to create version',
+        params: { 'Project Key': projectKey, Name: name },
+        tip: 'Check if the project exists and you have permission to manage versions.',
+      });
+    }
+  }
+
+  async updateVersion(args: { versionId: string; name?: string; description?: string; startDate?: string; releaseDate?: string; released?: boolean; archived?: boolean }): Promise<ToolResponse> {
+    const { versionId, name, description, startDate, releaseDate, released, archived } = args;
+    try {
+      const version = await this.service.updateVersion(versionId, { name, description, startDate, releaseDate, released, archived });
+      return successResponse(
+        `${ICONS.SUCCESS} Version ${versionId} updated successfully\n\n` +
+        `**Name:** ${version.name}\n` +
+        `**Released:** ${version.released}\n` +
+        `**Archived:** ${version.archived}\n` +
+        (version.description ? `**Description:** ${version.description}\n` : '') +
+        (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to update version ${versionId}`,
+        params: { 'Version ID': versionId },
+        tip: 'Check if the version exists and you have permission to manage versions.',
+      });
+    }
+  }
+
+  async linkToEpic(args: { issueKey: string; epicKey: string }): Promise<ToolResponse> {
+    const { issueKey, epicKey } = args;
+    try {
+      await this.service.linkToEpic(issueKey, epicKey);
+      return successResponse(`${ICONS.SUCCESS} Issue ${issueKey} linked to epic ${epicKey}`);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: `Failed to link ${issueKey} to epic ${epicKey}`,
+        params: { 'Issue Key': issueKey, 'Epic Key': epicKey },
+        tip: 'Check that both issues exist, the epic is actually an Epic type, and you have edit permission.',
+      });
+    }
+  }
 }

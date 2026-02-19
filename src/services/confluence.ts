@@ -354,6 +354,72 @@ export class ConfluenceService {
     return markup;
   }
 
+  // Page History Methods
+
+  async getPageHistory(pageId: string, limit: number = 25): Promise<any[]> {
+    const params = {
+      limit,
+      expand: 'content'
+    };
+
+    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/version`, params);
+
+    return response.results?.map((version: any) => ({
+      number: version.number,
+      by: version.by?.displayName || 'Unknown',
+      byAccountId: version.by?.accountId,
+      when: version.when || '',
+      message: version.message || '',
+      minorEdit: version.minorEdit || false,
+    })) || [];
+  }
+
+  // Page Children Methods
+
+  async getPageChildren(pageId: string, limit: number = 25): Promise<ConfluencePage[]> {
+    const params = {
+      limit,
+      expand: 'version,space'
+    };
+
+    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/child/page`, params);
+
+    return response.results?.map((page: any) => ({
+      id: page.id,
+      title: page.title,
+      content: '',
+      spaceKey: page.space?.key || '',
+      version: page.version?.number || 1,
+      created: page.history?.createdDate || '',
+      updated: page.version?.when || '',
+    })) || [];
+  }
+
+  // Label Methods
+
+  async getLabels(pageId: string): Promise<any[]> {
+    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/label`);
+    return response.results?.map((label: any) => ({
+      prefix: label.prefix,
+      name: label.name,
+      id: label.id,
+    })) || [];
+  }
+
+  async addLabels(pageId: string, labels: string[]): Promise<any[]> {
+    const data = labels.map(name => ({ prefix: 'global', name }));
+    const response = await this.client.post<any>(`/wiki/rest/api/content/${pageId}/label`, data);
+    return response.results?.map((label: any) => ({
+      prefix: label.prefix,
+      name: label.name,
+      id: label.id,
+    })) || [];
+  }
+
+  async removeLabel(pageId: string, label: string): Promise<void> {
+    await this.client.delete(`/wiki/rest/api/content/${pageId}/label/${encodeURIComponent(label)}`);
+  }
+
   // Comment Methods
 
   async getComments(pageId: string): Promise<ConfluenceComment[]> {

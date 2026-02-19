@@ -654,4 +654,380 @@ export const jiraTools: ToolDefinition[] = [
       required: ['issueKey', 'labels'],
     },
   },
+  {
+    name: 'jira_get_agile_boards',
+    description: 'Get Jira agile boards. Optionally filter by name, type (scrum/kanban), or project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Filter boards by name (contains match)',
+        },
+        type: {
+          type: 'string',
+          enum: ['scrum', 'kanban', 'simple'],
+          description: 'Filter by board type',
+        },
+        projectKeyOrId: {
+          type: 'string',
+          description: 'Filter boards by project key or ID',
+        },
+      },
+    },
+  },
+  {
+    name: 'jira_get_board_issues',
+    description: 'Get all issues on a Jira agile board',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        boardId: {
+          type: 'number',
+          description: 'The board ID',
+        },
+        jql: {
+          type: 'string',
+          description: 'Optional JQL to filter issues on the board',
+        },
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of results (default: 50)',
+          default: 50,
+        },
+        startAt: {
+          type: 'number',
+          description: 'Index of the first result (default: 0)',
+          default: 0,
+        },
+      },
+      required: ['boardId'],
+    },
+  },
+  {
+    name: 'jira_get_sprints',
+    description: 'Get sprints for a Jira agile board',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        boardId: {
+          type: 'number',
+          description: 'The board ID',
+        },
+        state: {
+          type: 'string',
+          enum: ['active', 'closed', 'future'],
+          description: 'Filter sprints by state',
+        },
+      },
+      required: ['boardId'],
+    },
+  },
+  {
+    name: 'jira_get_sprint_issues',
+    description: 'Get all issues in a specific sprint',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintId: {
+          type: 'number',
+          description: 'The sprint ID',
+        },
+        jql: {
+          type: 'string',
+          description: 'Optional JQL to filter issues in the sprint',
+        },
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of results (default: 50)',
+          default: 50,
+        },
+        startAt: {
+          type: 'number',
+          description: 'Index of the first result (default: 0)',
+          default: 0,
+        },
+      },
+      required: ['sprintId'],
+    },
+  },
+  {
+    name: 'jira_batch_create_issues',
+    description: 'Create multiple Jira issues in a single request (max 50)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issues: {
+          type: 'array',
+          description: 'Array of issues to create (max 50)',
+          items: {
+            type: 'object',
+            properties: {
+              projectKey: {
+                type: 'string',
+                description: 'The project key',
+              },
+              summary: {
+                type: 'string',
+                description: 'Issue summary/title',
+              },
+              description: {
+                type: 'string',
+                description: 'Issue description',
+              },
+              issueType: {
+                type: 'string',
+                description: 'Issue type (default: Task)',
+              },
+              additionalFields: {
+                type: 'object',
+                description: 'Additional fields as key-value pairs',
+              },
+            },
+            required: ['projectKey', 'summary', 'description'],
+          },
+        },
+      },
+      required: ['issues'],
+    },
+  },
+  {
+    name: 'jira_get_dev_status',
+    description: 'Get development information (PRs, branches, commits) linked to a Jira issue',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueId: {
+          type: 'string',
+          description: 'The numeric issue ID (not the key). Use jira_get_issue to get the ID.',
+        },
+        applicationType: {
+          type: 'string',
+          description: 'Filter by application type (e.g., "GitHub", "Bitbucket", "GitLab")',
+        },
+        dataType: {
+          type: 'string',
+          description: 'Filter by data type (e.g., "pullrequest", "branch", "repository")',
+        },
+      },
+      required: ['issueId'],
+    },
+  },
+  {
+    name: 'jira_delete_issue',
+    description: 'Delete a Jira issue. Optionally delete its subtasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueKey: {
+          type: 'string',
+          description: 'The issue key to delete (e.g., PROJ-123)',
+        },
+        deleteSubtasks: {
+          type: 'boolean',
+          description: 'Whether to also delete subtasks (default: false)',
+          default: false,
+        },
+      },
+      required: ['issueKey'],
+    },
+  },
+  {
+    name: 'jira_lookup_user',
+    description: 'Look up Jira users by name or email address. Returns account IDs needed for assignee, watcher, and other user fields.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Name or email address to search for',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'jira_get_issue_types',
+    description: 'Get available issue types for a Jira project (e.g., Bug, Story, Task, Epic, Sub-task)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectKey: {
+          type: 'string',
+          description: 'The project key (e.g., PROJ)',
+        },
+      },
+      required: ['projectKey'],
+    },
+  },
+  {
+    name: 'jira_create_sprint',
+    description: 'Create a new sprint on a Jira agile board',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        boardId: {
+          type: 'number',
+          description: 'The board ID to create the sprint on',
+        },
+        name: {
+          type: 'string',
+          description: 'Sprint name',
+        },
+        startDate: {
+          type: 'string',
+          description: 'Sprint start date in ISO 8601 format (e.g., 2026-03-01T00:00:00.000Z)',
+        },
+        endDate: {
+          type: 'string',
+          description: 'Sprint end date in ISO 8601 format',
+        },
+        goal: {
+          type: 'string',
+          description: 'Sprint goal description',
+        },
+      },
+      required: ['boardId', 'name'],
+    },
+  },
+  {
+    name: 'jira_update_sprint',
+    description: 'Update an existing sprint (name, dates, state, goal)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintId: {
+          type: 'number',
+          description: 'The sprint ID to update',
+        },
+        name: {
+          type: 'string',
+          description: 'New sprint name',
+        },
+        state: {
+          type: 'string',
+          enum: ['active', 'closed', 'future'],
+          description: 'New sprint state (use to start or close a sprint)',
+        },
+        startDate: {
+          type: 'string',
+          description: 'New start date in ISO 8601 format',
+        },
+        endDate: {
+          type: 'string',
+          description: 'New end date in ISO 8601 format',
+        },
+        goal: {
+          type: 'string',
+          description: 'Updated sprint goal',
+        },
+      },
+      required: ['sprintId'],
+    },
+  },
+  {
+    name: 'jira_get_project_versions',
+    description: 'Get all versions (releases) for a Jira project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectKey: {
+          type: 'string',
+          description: 'The project key (e.g., PROJ)',
+        },
+      },
+      required: ['projectKey'],
+    },
+  },
+  {
+    name: 'jira_create_version',
+    description: 'Create a new version (release) in a Jira project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectKey: {
+          type: 'string',
+          description: 'The project key (e.g., PROJ)',
+        },
+        name: {
+          type: 'string',
+          description: 'Version name (e.g., "1.2.0")',
+        },
+        description: {
+          type: 'string',
+          description: 'Version description',
+        },
+        startDate: {
+          type: 'string',
+          description: 'Start date in YYYY-MM-DD format',
+        },
+        releaseDate: {
+          type: 'string',
+          description: 'Release date in YYYY-MM-DD format',
+        },
+        released: {
+          type: 'boolean',
+          description: 'Whether the version is released (default: false)',
+          default: false,
+        },
+      },
+      required: ['projectKey', 'name'],
+    },
+  },
+  {
+    name: 'jira_update_version',
+    description: 'Update an existing version (release) in Jira',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        versionId: {
+          type: 'string',
+          description: 'The version ID to update',
+        },
+        name: {
+          type: 'string',
+          description: 'New version name',
+        },
+        description: {
+          type: 'string',
+          description: 'New version description',
+        },
+        startDate: {
+          type: 'string',
+          description: 'New start date in YYYY-MM-DD format',
+        },
+        releaseDate: {
+          type: 'string',
+          description: 'New release date in YYYY-MM-DD format',
+        },
+        released: {
+          type: 'boolean',
+          description: 'Mark as released',
+        },
+        archived: {
+          type: 'boolean',
+          description: 'Mark as archived',
+        },
+      },
+      required: ['versionId'],
+    },
+  },
+  {
+    name: 'jira_link_to_epic',
+    description: 'Link an issue to an epic. Works with both next-gen (parent field) and classic (Epic Link field) projects.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueKey: {
+          type: 'string',
+          description: 'The issue key to link (e.g., PROJ-456)',
+        },
+        epicKey: {
+          type: 'string',
+          description: 'The epic key to link to (e.g., PROJ-100)',
+        },
+      },
+      required: ['issueKey', 'epicKey'],
+    },
+  },
 ];

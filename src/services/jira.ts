@@ -725,6 +725,243 @@ export class JiraService {
     })) || [];
   }
 
+  // Agile Methods
+
+  async getAgileBoards(options?: { name?: string; type?: string; projectKeyOrId?: string }): Promise<any[]> {
+    const params: any = { maxResults: 50 };
+    if (options?.name) params.name = options.name;
+    if (options?.type) params.type = options.type;
+    if (options?.projectKeyOrId) params.projectKeyOrId = options.projectKeyOrId;
+
+    const response = await this.client.get<any>('/rest/agile/1.0/board', params);
+    return response.values?.map((board: any) => ({
+      id: board.id,
+      name: board.name,
+      type: board.type,
+      location: board.location ? {
+        projectId: board.location.projectId,
+        projectKey: board.location.projectKey,
+        projectName: board.location.projectName,
+      } : null,
+    })) || [];
+  }
+
+  async getBoardIssues(boardId: number, options?: { jql?: string; maxResults?: number; startAt?: number }): Promise<any> {
+    const params: any = { maxResults: options?.maxResults || 50 };
+    if (options?.jql) params.jql = options.jql;
+    if (options?.startAt) params.startAt = options.startAt;
+
+    const response = await this.client.get<any>(`/rest/agile/1.0/board/${boardId}/issue`, params);
+    return {
+      total: response.total,
+      issues: response.issues?.map((issue: any) => ({
+        key: issue.key,
+        summary: issue.fields?.summary || '',
+        status: issue.fields?.status?.name || '',
+        assignee: issue.fields?.assignee?.displayName || '',
+        priority: issue.fields?.priority?.name || '',
+      })) || [],
+    };
+  }
+
+  async getSprints(boardId: number, state?: string): Promise<any[]> {
+    const params: any = { maxResults: 50 };
+    if (state) params.state = state;
+
+    const response = await this.client.get<any>(`/rest/agile/1.0/board/${boardId}/sprint`, params);
+    return response.values?.map((sprint: any) => ({
+      id: sprint.id,
+      name: sprint.name,
+      state: sprint.state,
+      startDate: sprint.startDate || null,
+      endDate: sprint.endDate || null,
+      completeDate: sprint.completeDate || null,
+      goal: sprint.goal || '',
+    })) || [];
+  }
+
+  async getSprintIssues(sprintId: number, options?: { jql?: string; maxResults?: number; startAt?: number }): Promise<any> {
+    const params: any = { maxResults: options?.maxResults || 50 };
+    if (options?.jql) params.jql = options.jql;
+    if (options?.startAt) params.startAt = options.startAt;
+
+    const response = await this.client.get<any>(`/rest/agile/1.0/sprint/${sprintId}/issue`, params);
+    return {
+      total: response.total,
+      issues: response.issues?.map((issue: any) => ({
+        key: issue.key,
+        summary: issue.fields?.summary || '',
+        status: issue.fields?.status?.name || '',
+        assignee: issue.fields?.assignee?.displayName || '',
+        priority: issue.fields?.priority?.name || '',
+      })) || [],
+    };
+  }
+
+  // Batch Create
+
+  async batchCreateIssues(issues: Array<{ projectKey: string; summary: string; description: string; issueType?: string; additionalFields?: Record<string, any> }>): Promise<any> {
+    if (issues.length > 50) {
+      throw new Error('Batch create supports a maximum of 50 issues at a time');
+    }
+
+    const issueUpdates = issues.map(issue => ({
+      fields: {
+        project: { key: issue.projectKey },
+        summary: issue.summary,
+        description: this.parseDescriptionToADF(issue.description),
+        issuetype: { name: issue.issueType || 'Task' },
+        ...issue.additionalFields,
+      },
+    }));
+
+    const response = await this.client.post<any>('/rest/api/3/issue/bulk', { issueUpdates });
+    return {
+      issues: response.issues?.map((i: any) => ({ id: i.id, key: i.key, self: i.self })) || [],
+      errors: response.errors || [],
+    };
+  }
+
+  // Dev Status
+
+  async getDevStatus(issueId: string, applicationType?: string, dataType?: string): Promise<any> {
+    const params: any = { issueId };
+    if (applicationType) params.applicationType = applicationType;
+    if (dataType) params.dataType = dataType;
+
+    const response = await this.client.get<any>('/rest/dev-status/latest/issue/detail', params);
+    return response;
+  }
+
+  // Delete Issue
+
+  async deleteIssue(issueKey: string, deleteSubtasks: boolean = false): Promise<void> {
+    const query = deleteSubtasks ? '?deleteSubtasks=true' : '';
+    await this.client.delete(`/rest/api/3/issue/${issueKey}${query}`);
+  }
+
+  // Sprint Management
+
+  async createSprint(boardId: number, name: string, options?: { startDate?: string; endDate?: string; goal?: string }): Promise<any> {
+    const data: any = {
+      name,
+      originBoardId: boardId,
+    };
+    if (options?.startDate) data.startDate = options.startDate;
+    if (options?.endDate) data.endDate = options.endDate;
+    if (options?.goal) data.goal = options.goal;
+
+    const response = await this.client.post<any>('/rest/agile/1.0/sprint', data);
+    return {
+      id: response.id,
+      name: response.name,
+      state: response.state,
+      startDate: response.startDate || null,
+      endDate: response.endDate || null,
+      goal: response.goal || '',
+    };
+  }
+
+  async updateSprint(sprintId: number, updates: { name?: string; state?: string; startDate?: string; endDate?: string; goal?: string }): Promise<any> {
+    const data: any = {};
+    if (updates.name) data.name = updates.name;
+    if (updates.state) data.state = updates.state;
+    if (updates.startDate) data.startDate = updates.startDate;
+    if (updates.endDate) data.endDate = updates.endDate;
+    if (updates.goal !== undefined) data.goal = updates.goal;
+
+    const response = await this.client.post<any>(`/rest/agile/1.0/sprint/${sprintId}`, data);
+    return {
+      id: response.id,
+      name: response.name,
+      state: response.state,
+      startDate: response.startDate || null,
+      endDate: response.endDate || null,
+      goal: response.goal || '',
+    };
+  }
+
+  // Version/Release Management
+
+  async getProjectVersions(projectKey: string): Promise<any[]> {
+    const response = await this.client.get<any>(`/rest/api/3/project/${projectKey}/versions`);
+    return response.map((v: any) => ({
+      id: v.id,
+      name: v.name,
+      description: v.description || '',
+      released: v.released || false,
+      archived: v.archived || false,
+      startDate: v.startDate || null,
+      releaseDate: v.releaseDate || null,
+    }));
+  }
+
+  async createVersion(projectKey: string, name: string, options?: { description?: string; startDate?: string; releaseDate?: string; released?: boolean }): Promise<any> {
+    const data: any = {
+      project: projectKey,
+      name,
+    };
+    if (options?.description) data.description = options.description;
+    if (options?.startDate) data.startDate = options.startDate;
+    if (options?.releaseDate) data.releaseDate = options.releaseDate;
+    if (options?.released !== undefined) data.released = options.released;
+
+    const response = await this.client.post<any>('/rest/api/3/version', data);
+    return {
+      id: response.id,
+      name: response.name,
+      description: response.description || '',
+      released: response.released || false,
+      archived: response.archived || false,
+      startDate: response.startDate || null,
+      releaseDate: response.releaseDate || null,
+    };
+  }
+
+  async updateVersion(versionId: string, updates: { name?: string; description?: string; startDate?: string; releaseDate?: string; released?: boolean; archived?: boolean }): Promise<any> {
+    const data: any = {};
+    if (updates.name) data.name = updates.name;
+    if (updates.description !== undefined) data.description = updates.description;
+    if (updates.startDate) data.startDate = updates.startDate;
+    if (updates.releaseDate) data.releaseDate = updates.releaseDate;
+    if (updates.released !== undefined) data.released = updates.released;
+    if (updates.archived !== undefined) data.archived = updates.archived;
+
+    const response = await this.client.put<any>(`/rest/api/3/version/${versionId}`, data);
+    return {
+      id: response.id,
+      name: response.name,
+      description: response.description || '',
+      released: response.released || false,
+      archived: response.archived || false,
+      startDate: response.startDate || null,
+      releaseDate: response.releaseDate || null,
+    };
+  }
+
+  // Epic Linking
+
+  async linkToEpic(issueKey: string, epicKey: string): Promise<void> {
+    // In next-gen projects, Epic is the parent. In classic, it's the Epic Link custom field.
+    // Try parent field first (works for next-gen/team-managed), fall back to Epic Link.
+    try {
+      await this.client.put(`/rest/api/3/issue/${issueKey}`, {
+        fields: { parent: { key: epicKey } }
+      });
+    } catch {
+      // Fallback: find the Epic Link custom field ID and use that
+      const fields = await this.client.get<any>('/rest/api/3/field');
+      const epicLinkField = fields.find((f: any) => f.name === 'Epic Link' || f.clauseNames?.includes('cf[10014]'));
+      if (epicLinkField) {
+        await this.client.put(`/rest/api/3/issue/${issueKey}`, {
+          fields: { [epicLinkField.id]: epicKey }
+        });
+      } else {
+        throw new Error('Could not find Epic Link field. Ensure the issue type supports epic linking.');
+      }
+    }
+  }
+
   // Smart Field Handling Methods
 
   private async handleTransitionError(issueKey: string, transitionId: string, error: any): Promise<JiraRequiredField[]> {

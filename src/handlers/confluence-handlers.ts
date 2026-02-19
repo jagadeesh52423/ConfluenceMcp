@@ -305,4 +305,91 @@ export class ConfluenceHandlers {
       });
     }
   }
+
+  async getPageChildren(args: { pageId: string; limit?: number }): Promise<ToolResponse> {
+    const { pageId, limit } = args;
+    try {
+      const children = await this.service.getPageChildren(pageId, limit);
+      return jsonResponse(children);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get child pages',
+        params: { 'Page ID': pageId, Limit: limit || 25 },
+        tip: ERROR_TIPS.CONFLUENCE_PAGE_VIEW,
+      });
+    }
+  }
+
+  async getLabels(args: { pageId: string }): Promise<ToolResponse> {
+    const { pageId } = args;
+    try {
+      const labels = await this.service.getLabels(pageId);
+      return jsonResponse(labels);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get labels',
+        params: { 'Page ID': pageId },
+        tip: ERROR_TIPS.CONFLUENCE_LABEL,
+      });
+    }
+  }
+
+  async addLabels(args: { pageId: string; labels: string[] }): Promise<ToolResponse> {
+    const { pageId, labels } = args;
+    try {
+      const result = await this.service.addLabels(pageId, labels);
+      return successResponse(
+        `${ICONS.SUCCESS} Labels added to page ${pageId}\n\n` +
+        `${ICONS.LABELS} **Added:** ${labels.join(', ')}`
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to add labels',
+        params: { 'Page ID': pageId, Labels: labels.join(', ') },
+        tip: ERROR_TIPS.CONFLUENCE_LABEL,
+      });
+    }
+  }
+
+  async removeLabel(args: { pageId: string; label: string }): Promise<ToolResponse> {
+    const { pageId, label } = args;
+    try {
+      await this.service.removeLabel(pageId, label);
+      return successResponse(`${ICONS.SUCCESS} Label "${label}" removed from page ${pageId}`);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to remove label',
+        params: { 'Page ID': pageId, Label: label },
+        tip: ERROR_TIPS.CONFLUENCE_LABEL,
+      });
+    }
+  }
+
+  async deletePage(args: { pageId: string }): Promise<ToolResponse> {
+    const { pageId } = args;
+    try {
+      await this.service.deletePage(pageId);
+      return successResponse(`${ICONS.SUCCESS} Page ${pageId} deleted successfully`);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to delete page',
+        params: { 'Page ID': pageId },
+        tip: ERROR_TIPS.CONFLUENCE_DELETE,
+      });
+    }
+  }
+
+  async getPageHistory(args: { pageId: string; limit?: number }): Promise<ToolResponse> {
+    const { pageId, limit } = args;
+    try {
+      const history = await this.service.getPageHistory(pageId, limit);
+      return jsonResponse(history);
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to get page history',
+        params: { 'Page ID': pageId, Limit: limit || 25 },
+        tip: ERROR_TIPS.CONFLUENCE_PAGE_VIEW,
+      });
+    }
+  }
 }

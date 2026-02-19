@@ -103,6 +103,12 @@ export const ERROR_TIPS = {
   JIRA_WORKLOG: 'Check if the issue/worklog exists and you have permission.',
   JIRA_WATCHER: 'Check if the issue and user exist, and you have permission.',
   JIRA_SUBTASK: 'Check if the parent issue exists, the project allows sub-tasks, and you have permission to create issues.',
+  JIRA_AGILE: 'Check that the board exists and you have permission to view it. Agile boards require a Jira Software license.',
+  JIRA_BATCH: 'Check that all issues have valid project keys, required fields, and you have permission to create issues. Max 50 issues per request.',
+  JIRA_DEV_STATUS: 'Check that the issue ID is numeric (not the key) and a dev tool integration (GitHub, Bitbucket, etc.) is connected.',
+  JIRA_DELETE: 'Check if the issue exists and you have permission to delete it. Issues with subtasks require deleteSubtasks=true.',
+  CONFLUENCE_LABEL: 'Check if the page exists and you have permission to manage labels.',
+  CONFLUENCE_DELETE: 'Check if the page exists and you have permission to delete it. Pages with children may require special handling.',
 
   // Bitbucket
   BITBUCKET_REPO: 'Check your Bitbucket permissions and API access.',

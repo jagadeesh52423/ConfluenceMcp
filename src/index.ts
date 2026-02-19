@@ -102,6 +102,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
       case 'confluence_delete_comment':
         return confluenceHandlers.deleteComment(args as any);
 
+      case 'confluence_get_page_children':
+        return confluenceHandlers.getPageChildren(args as any);
+
+      case 'confluence_get_labels':
+        return confluenceHandlers.getLabels(args as any);
+
+      case 'confluence_add_labels':
+        return confluenceHandlers.addLabels(args as any);
+
+      case 'confluence_remove_label':
+        return confluenceHandlers.removeLabel(args as any);
+
+      case 'confluence_delete_page':
+        return confluenceHandlers.deletePage(args as any);
+
+      case 'confluence_get_page_history':
+        return confluenceHandlers.getPageHistory(args as any);
+
       // Jira Tools
       case 'jira_search_issues':
         return jiraHandlers.searchIssues(args as any);
@@ -201,6 +219,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
 
       case 'jira_remove_labels':
         return jiraHandlers.removeLabels(args as any);
+
+      case 'jira_get_agile_boards':
+        return jiraHandlers.getAgileBoards(args as any);
+
+      case 'jira_get_board_issues':
+        return jiraHandlers.getBoardIssues(args as any);
+
+      case 'jira_get_sprints':
+        return jiraHandlers.getSprints(args as any);
+
+      case 'jira_get_sprint_issues':
+        return jiraHandlers.getSprintIssues(args as any);
+
+      case 'jira_batch_create_issues':
+        return jiraHandlers.batchCreateIssues(args as any);
+
+      case 'jira_get_dev_status':
+        return jiraHandlers.getDevStatus(args as any);
+
+      case 'jira_delete_issue':
+        return jiraHandlers.deleteIssue(args as any);
+
+      case 'jira_lookup_user':
+        return jiraHandlers.lookupUser(args as any);
+
+      case 'jira_get_issue_types':
+        return jiraHandlers.getIssueTypes(args as any);
+
+      case 'jira_create_sprint':
+        return jiraHandlers.createSprint(args as any);
+
+      case 'jira_update_sprint':
+        return jiraHandlers.updateSprint(args as any);
+
+      case 'jira_get_project_versions':
+        return jiraHandlers.getProjectVersions(args as any);
+
+      case 'jira_create_version':
+        return jiraHandlers.createVersion(args as any);
+
+      case 'jira_update_version':
+        return jiraHandlers.updateVersion(args as any);
+
+      case 'jira_link_to_epic':
+        return jiraHandlers.linkToEpic(args as any);
 
       // Bitbucket Tools
       case 'bitbucket_get_repositories':

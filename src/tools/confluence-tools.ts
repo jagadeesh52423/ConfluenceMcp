@@ -347,4 +347,107 @@ export const confluenceTools: ToolDefinition[] = [
       required: ['commentId'],
     },
   },
+  {
+    name: 'confluence_get_page_children',
+    description: 'Get child pages of a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The parent page ID',
+        },
+        limit: {
+          type: 'number',
+          description: `Maximum number of child pages to return (default: ${PAGINATION.CONFLUENCE_DEFAULT_LIMIT})`,
+          default: PAGINATION.CONFLUENCE_DEFAULT_LIMIT,
+        },
+      },
+      required: ['pageId'],
+    },
+  },
+  {
+    name: 'confluence_get_labels',
+    description: 'Get all labels on a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to get labels for',
+        },
+      },
+      required: ['pageId'],
+    },
+  },
+  {
+    name: 'confluence_add_labels',
+    description: 'Add labels to a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to add labels to',
+        },
+        labels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of label names to add',
+        },
+      },
+      required: ['pageId', 'labels'],
+    },
+  },
+  {
+    name: 'confluence_remove_label',
+    description: 'Remove a label from a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to remove the label from',
+        },
+        label: {
+          type: 'string',
+          description: 'The label name to remove',
+        },
+      },
+      required: ['pageId', 'label'],
+    },
+  },
+  {
+    name: 'confluence_delete_page',
+    description: 'Delete a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to delete',
+        },
+      },
+      required: ['pageId'],
+    },
+  },
+  {
+    name: 'confluence_get_page_history',
+    description: 'Get version history for a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to get history for',
+        },
+        limit: {
+          type: 'number',
+          description: `Maximum number of versions to return (default: ${PAGINATION.CONFLUENCE_DEFAULT_LIMIT})`,
+          default: PAGINATION.CONFLUENCE_DEFAULT_LIMIT,
+        },
+      },
+      required: ['pageId'],
+    },
+  },
 ];
