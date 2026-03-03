@@ -1,5 +1,6 @@
 import { ConfluenceClient } from '../clients/confluence-client.js';
 import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, SearchOptions } from '../types.js';
+import { markdownToConfluenceStorage } from '../formatters/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -88,7 +89,7 @@ export class ConfluenceService {
       space: { key: spaceKey },
       body: {
         storage: {
-          value: content,
+          value: markdownToConfluenceStorage(content),
           representation: 'storage'
         }
       }
@@ -118,7 +119,7 @@ export class ConfluenceService {
       type: 'page',
       body: {
         storage: {
-          value: content,
+          value: markdownToConfluenceStorage(content),
           representation: 'storage'
         }
       }
@@ -449,7 +450,7 @@ export class ConfluenceService {
       },
       body: {
         storage: {
-          value: body,
+          value: markdownToConfluenceStorage(body),
           representation: 'storage'
         }
       }
@@ -474,7 +475,7 @@ export class ConfluenceService {
       version: { number: version + 1 },
       body: {
         storage: {
-          value: body,
+          value: markdownToConfluenceStorage(body),
           representation: 'storage'
         }
       }

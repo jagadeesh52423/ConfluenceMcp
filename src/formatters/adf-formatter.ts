@@ -4,6 +4,28 @@
  */
 
 /**
+ * Jira/Confluence ADF supported languages mapped from common LLM output aliases
+ */
+const LANGUAGE_ALIASES: Record<string, string> = {
+  tsx: 'javascript',
+  jsx: 'javascript',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  dockerfile: 'bash',
+  tf: 'plaintext',
+  hcl: 'plaintext',
+  mdx: 'markdown',
+  yml: 'yaml',
+};
+
+function normalizeCodeLanguage(lang: string): string {
+  if (!lang) return '';
+  const lower = lang.toLowerCase();
+  return LANGUAGE_ALIASES[lower] ?? lower;
+}
+
+/**
  * Extracts plain text from ADF (Atlassian Document Format) body
  */
 export function extractTextFromADF(body: any): string {
@@ -146,6 +168,7 @@ export function parseInlineFormatting(text: string): any[] {
   // **bold** should be processed before *italic* to handle **text** correctly
   const patterns = [
     { regex: /\*\*(.*?)\*\*/g, type: 'strong' },    // **bold** (process first)
+    { regex: /~~(.*?)~~/g, type: 'strike' },         // ~~strikethrough~~
     { regex: /`([^`]+?)`/g, type: 'code' },         // `code` (markdown style)
     { regex: /\{\{(.+?)\}\}/g, type: 'code' },      // {{code}} (Confluence/Jira wiki style)
   ];
@@ -418,6 +441,8 @@ export function parseDescriptionToADF(description: string): any {
     }
     // Handle code blocks (```)
     else if (line.startsWith('```')) {
+      const rawLang = line.substring(3).trim();
+      const lang = normalizeCodeLanguage(rawLang);
       const codeLines: string[] = [];
       i++; // Skip the opening ```
 
@@ -426,13 +451,16 @@ export function parseDescriptionToADF(description: string): any {
         i++;
       }
 
-      content.push({
+      const codeBlock: any = {
         type: 'codeBlock',
+        attrs: lang ? { language: lang } : {},
         content: [{
           type: 'text',
           text: codeLines.join('\n')
         }]
-      });
+      };
+
+      content.push(codeBlock);
     }
     // Handle markdown tables - convert to proper ADF table structure
     else if (line.includes('|') && line.trim() !== '|') {
@@ -568,11 +596,29 @@ export function parseDescriptionToADF(description: string): any {
  * Convert description to wiki markup text format
  */
 export function parseDescriptionToWikiMarkup(description: string): string {
-  const lines = description.split('\n');
+  // Extract code blocks before any line-by-line processing so their
+  // contents are never transformed by heading/table/list logic.
+  const codeBlockStore: string[] = [];
+  const protected_ = description.replace(/```(\w*)\n?([\s\S]*?)```/g, (_full, lang, code) => {
+    const idx = codeBlockStore.length;
+    const normalizedLang = normalizeCodeLanguage(lang);
+    const langSuffix = normalizedLang ? `:language=${normalizedLang}` : '';
+    codeBlockStore.push(`{code${langSuffix}}\n${code.replace(/^\n/, '').replace(/\n$/, '')}\n{code}`);
+    return `\x00CODEBLOCK_${idx}\x00`;
+  });
+
+  const lines = protected_.split('\n');
   const result: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+
+    // Restore code blocks
+    if (line.match(/^\x00CODEBLOCK_(\d+)\x00$/)) {
+      const idx = parseInt(line.match(/\x00CODEBLOCK_(\d+)\x00/)![1]);
+      result.push(codeBlockStore[idx]);
+      continue;
+    }
 
     if (line === '') {
       result.push('');
@@ -657,6 +703,201 @@ export function parseDescriptionToWikiMarkup(description: string): string {
     else {
       result.push(line);
     }
+  }
+
+  return result.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Confluence Storage Format Converter
+// ---------------------------------------------------------------------------
+
+/**
+ * Escapes special HTML characters for use inside storage-format text nodes.
+ */
+function escapeStorageHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Applies inline markdown formatting and converts it to Confluence storage
+ * format HTML (strong, em, strike, code, links).
+ * Code spans are protected from further transformation.
+ */
+function applyInlineStorageFormat(text: string): string {
+  // Protect inline code spans first
+  const spans: string[] = [];
+  let out = text.replace(/`([^`]+)`/g, (_full, code) => {
+    const idx = spans.length;
+    spans.push(`<code>${escapeStorageHtml(code)}</code>`);
+    return `\x00SPAN_${idx}\x00`;
+  });
+
+  out = out
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~(.*?)~~/g, '<s>$1</s>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+  // Restore code spans
+  spans.forEach((span, idx) => {
+    out = out.replace(`\x00SPAN_${idx}\x00`, span);
+  });
+
+  return out;
+}
+
+/**
+ * Returns true when the string already contains Confluence storage-format
+ * markup so that it can be passed through as-is.
+ */
+function isAlreadyStorageFormat(content: string): boolean {
+  const trimmed = content.trim();
+  return (
+    trimmed.startsWith('<') &&
+    (trimmed.includes('<ac:') ||
+      trimmed.includes('<ri:') ||
+      /^<(p|h[1-6]|ul|ol|table|blockquote|hr)\b/i.test(trimmed))
+  );
+}
+
+/**
+ * Converts LLM-produced markdown to Confluence storage format (XHTML).
+ * If the input already looks like storage format it is returned unchanged.
+ *
+ * Supported elements:
+ *  - ATX headings (#–######)
+ *  - Fenced code blocks (``` lang … ```) → ac:structured-macro "code"
+ *  - Blockquotes (> …)
+ *  - Unordered lists (- / * / +)
+ *  - Ordered lists (1. …)
+ *  - Markdown tables
+ *  - Horizontal rules (---, ***, ___)
+ *  - Inline: **bold**, *italic*, ~~strike~~, `code`, [text](url)
+ */
+export function markdownToConfluenceStorage(markdown: string): string {
+  if (isAlreadyStorageFormat(markdown)) {
+    return markdown;
+  }
+
+  // --- Phase 1: extract fenced code blocks into placeholders ---
+  const codeBlocks: string[] = [];
+  const withoutCode = markdown.replace(/```(\w*)\n?([\s\S]*?)```/g, (_full, rawLang, code) => {
+    const idx = codeBlocks.length;
+    const lang = normalizeCodeLanguage(rawLang);
+    const langParam = lang
+      ? `<ac:parameter ac:name="language">${lang}</ac:parameter>`
+      : '';
+    const body = code.replace(/^\n/, '').replace(/\n$/, '');
+    codeBlocks.push(
+      `<ac:structured-macro ac:name="code">${langParam}` +
+      `<ac:plain-text-body><![CDATA[${body}]]></ac:plain-text-body>` +
+      `</ac:structured-macro>`
+    );
+    return `\x00CODE_${idx}\x00`;
+  });
+
+  // --- Phase 2: line-by-line conversion ---
+  const lines = withoutCode.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.trim();
+
+    // Code block placeholder
+    const codeMatch = line.match(/^\x00CODE_(\d+)\x00$/);
+    if (codeMatch) {
+      result.push(codeBlocks[parseInt(codeMatch[1])]);
+      i++;
+      continue;
+    }
+
+    // Heading
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      result.push(`<h${level}>${applyInlineStorageFormat(headingMatch[2])}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^([-*_])\1{2,}$/.test(line)) {
+      result.push('<hr/>');
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      result.push(`<blockquote><p>${applyInlineStorageFormat(line.substring(2))}</p></blockquote>`);
+      i++;
+      continue;
+    }
+
+    // Table — collect all consecutive table lines
+    if (line.startsWith('|')) {
+      const tableRows: string[][] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        const row = lines[i].trim();
+        // Skip separator lines (e.g. |---|---|)
+        if (!/^\|[\s\-:|]+\|?$/.test(row)) {
+          const cells = row.split('|').map(c => c.trim()).filter(c => c !== '');
+          if (cells.length > 0) tableRows.push(cells);
+        }
+        i++;
+      }
+      if (tableRows.length > 0) {
+        let html = '<table><tbody>';
+        html += '<tr>' + tableRows[0].map(c => `<th>${applyInlineStorageFormat(c)}</th>`).join('') + '</tr>';
+        for (let r = 1; r < tableRows.length; r++) {
+          html += '<tr>' + tableRows[r].map(c => `<td>${applyInlineStorageFormat(c)}</td>`).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+        result.push(html);
+      }
+      continue;
+    }
+
+    // Unordered list — collect consecutive items
+    if (/^[-*+]\s/.test(line)) {
+      let html = '<ul>';
+      while (i < lines.length && /^[-*+]\s/.test(lines[i].trim())) {
+        html += `<li>${applyInlineStorageFormat(lines[i].trim().substring(2).trim())}</li>`;
+        i++;
+      }
+      html += '</ul>';
+      result.push(html);
+      continue;
+    }
+
+    // Ordered list — collect consecutive items
+    if (/^\d+\.\s/.test(line)) {
+      let html = '<ol>';
+      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+        const text = lines[i].trim().replace(/^\d+\.\s/, '');
+        html += `<li>${applyInlineStorageFormat(text)}</li>`;
+        i++;
+      }
+      html += '</ol>';
+      result.push(html);
+      continue;
+    }
+
+    // Empty line — skip (Confluence doesn't need explicit paragraph breaks between block elements)
+    if (line === '') {
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    result.push(`<p>${applyInlineStorageFormat(line)}</p>`);
+    i++;
   }
 
   return result.join('\n');
