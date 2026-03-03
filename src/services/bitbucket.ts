@@ -40,30 +40,12 @@ export class BitbucketService {
 
     const response = await this.client.get(url, { params });
 
-    return response.data.values.map((repo: any) => ({
-      name: repo.name,
-      fullName: repo.full_name,
-      description: repo.description || '',
-      language: repo.language || 'Unknown',
-      private: repo.is_private,
-      createdOn: repo.created_on,
-      updatedOn: repo.updated_on
-    }));
+    return response.data.values.map(BitbucketService.mapRepository);
   }
 
   async getRepository(repoName: string): Promise<BitbucketRepository> {
     const response = await this.client.get(`/repositories/${this.workspace}/${repoName}`);
-    const repo = response.data;
-
-    return {
-      name: repo.name,
-      fullName: repo.full_name,
-      description: repo.description || '',
-      language: repo.language || 'Unknown',
-      private: repo.is_private,
-      createdOn: repo.created_on,
-      updatedOn: repo.updated_on
-    };
+    return BitbucketService.mapRepository(response.data);
   }
 
   async createRepository(
@@ -84,8 +66,10 @@ export class BitbucketService {
     }
 
     const response = await this.client.post(`/repositories/${this.workspace}/${name}`, data);
-    const repo = response.data;
+    return BitbucketService.mapRepository(response.data);
+  }
 
+  private static mapRepository(repo: any): BitbucketRepository {
     return {
       name: repo.name,
       fullName: repo.full_name,
@@ -93,7 +77,19 @@ export class BitbucketService {
       language: repo.language || 'Unknown',
       private: repo.is_private,
       createdOn: repo.created_on,
-      updatedOn: repo.updated_on
+      updatedOn: repo.updated_on,
+    };
+  }
+
+  private static mapComment(c: any): BitbucketPRComment {
+    return {
+      id: c.id,
+      content: c.content?.raw || '',
+      author: c.user?.display_name || 'Unknown',
+      authorAccountId: c.user?.account_id,
+      created: c.created_on,
+      updated: c.updated_on,
+      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
     };
   }
 
@@ -248,19 +244,7 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments`,
       { params: { pagelen: 100 } }
     );
-    return response.data.values.map((c: any) => ({
-      id: c.id,
-      content: c.content?.raw || '',
-      author: c.user?.display_name || 'Unknown',
-      authorAccountId: c.user?.account_id,
-      created: c.created_on,
-      updated: c.updated_on,
-      inline: c.inline ? {
-        path: c.inline.path,
-        from: c.inline.from,
-        to: c.inline.to,
-      } : undefined,
-    }));
+    return response.data.values.map(BitbucketService.mapComment);
   }
 
   async addPRComment(
@@ -281,16 +265,7 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments`,
       data
     );
-    const c = response.data;
-    return {
-      id: c.id,
-      content: c.content?.raw || '',
-      author: c.user?.display_name || 'Unknown',
-      authorAccountId: c.user?.account_id,
-      created: c.created_on,
-      updated: c.updated_on,
-      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
-    };
+    return BitbucketService.mapComment(response.data);
   }
 
   async updatePRComment(
@@ -303,16 +278,7 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
       { content: { raw: content } }
     );
-    const c = response.data;
-    return {
-      id: c.id,
-      content: c.content?.raw || '',
-      author: c.user?.display_name || 'Unknown',
-      authorAccountId: c.user?.account_id,
-      created: c.created_on,
-      updated: c.updated_on,
-      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
-    };
+    return BitbucketService.mapComment(response.data);
   }
 
   async deletePRComment(repoName: string, prId: number, commentId: number): Promise<void> {
@@ -326,16 +292,7 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
       { resolution: { type: 'RESOLVED' } }
     );
-    const c = response.data;
-    return {
-      id: c.id,
-      content: c.content?.raw || '',
-      author: c.user?.display_name || 'Unknown',
-      authorAccountId: c.user?.account_id,
-      created: c.created_on,
-      updated: c.updated_on,
-      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
-    };
+    return BitbucketService.mapComment(response.data);
   }
 
   async unresolvePRComment(repoName: string, prId: number, commentId: number): Promise<BitbucketPRComment> {
@@ -343,15 +300,6 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
       { resolution: null }
     );
-    const c = response.data;
-    return {
-      id: c.id,
-      content: c.content?.raw || '',
-      author: c.user?.display_name || 'Unknown',
-      authorAccountId: c.user?.account_id,
-      created: c.created_on,
-      updated: c.updated_on,
-      inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
-    };
+    return BitbucketService.mapComment(response.data);
   }
 }
