@@ -26,109 +26,105 @@ function normalizeCodeLanguage(lang: string): string {
 }
 
 /**
- * Extracts plain text from ADF (Atlassian Document Format) body
+ * Recursively converts a single ADF node to plain text.
+ * Mirrors sooperset's adf_to_text recursive approach:
+ * - Content arrays are joined with '\n'
+ * - Marks (bold, italic, links) are stripped — plain text only
+ */
+function adfNodeToText(node: any): string {
+  if (!node) return '';
+
+  // Array: map each item and join with newline (mirrors sooperset's "\n".join)
+  if (Array.isArray(node)) {
+    return node.map(adfNodeToText).filter(Boolean).join('\n');
+  }
+
+  if (typeof node !== 'object') return String(node);
+
+  switch (node.type) {
+    case 'text':
+      // Marks (bold, italic, link, etc.) are stripped — plain text only
+      return node.text ?? '';
+
+    case 'hardBreak':
+      return '\n';
+
+    case 'mention': {
+      const attrs = node.attrs ?? {};
+      return attrs.text ?? `@${attrs.id ?? 'unknown'}`;
+    }
+
+    case 'emoji': {
+      const attrs = node.attrs ?? {};
+      return attrs.text ?? attrs.shortName ?? '';
+    }
+
+    case 'date': {
+      const timestamp = node.attrs?.timestamp;
+      if (!timestamp) return '';
+      try {
+        return new Date(Number(timestamp)).toISOString().slice(0, 10);
+      } catch {
+        return String(timestamp);
+      }
+    }
+
+    case 'status':
+      return `[${node.attrs?.text ?? ''}]`;
+
+    case 'inlineCard': {
+      const attrs = node.attrs ?? {};
+      return attrs.url ?? attrs.data?.url ?? attrs.data?.name ?? '';
+    }
+
+    case 'heading': {
+      const level = node.attrs?.level ?? 1;
+      return `${'#'.repeat(level)} ${adfNodeToText(node.content ?? [])}`;
+    }
+
+    case 'listItem':
+      return `- ${adfNodeToText(node.content ?? [])}`;
+
+    case 'codeBlock': {
+      const lang = node.attrs?.language ? normalizeCodeLanguage(node.attrs.language) : '';
+      return `\`\`\`${lang}\n${adfNodeToText(node.content ?? [])}\n\`\`\``;
+    }
+
+    case 'table': {
+      if (!node.content) return '';
+      const rows: string[][] = (node.content as any[])
+        .filter((row: any) => row.type === 'tableRow' && row.content)
+        .map((row: any) =>
+          (row.content as any[])
+            .filter((cell: any) => cell.type === 'tableCell' || cell.type === 'tableHeader')
+            .map((cell: any) => adfNodeToText(cell.content ?? []).replace(/\n/g, ' ').trim())
+        )
+        .filter((cells: string[]) => cells.length > 0);
+
+      if (rows.length === 0) return '';
+      const [header, ...data] = rows;
+      return [
+        '| ' + header.join(' | ') + ' |',
+        '|' + header.map(() => '--------').join('|') + '|',
+        ...data.map(row => '| ' + row.join(' | ') + ' |'),
+      ].join('\n');
+    }
+
+    default:
+      if (node.content) return adfNodeToText(node.content);
+      return '';
+  }
+}
+
+/**
+ * Extracts plain text from ADF (Atlassian Document Format) body.
+ * Follows sooperset's recursive '\n'-joining approach.
  */
 export function extractTextFromADF(body: any): string {
   if (!body) return '';
-
-  // If body is already a string (wiki markup), return it directly
-  if (typeof body === 'string') {
-    return formatWikiMarkup(body);
-  }
-
-  // If body doesn't have content property, it might be wiki markup in another format
-  if (!body.content) {
-    return formatWikiMarkup(String(body));
-  }
-
-  let text = '';
-  const extractFromContent = (content: any[]): void => {
-    for (const item of content) {
-      if (item.type === 'text' && item.text) {
-        text += item.text;
-      } else if (item.type === 'hardBreak') {
-        text += '\n';
-      } else if (item.type === 'paragraph') {
-        if (item.content) {
-          extractFromContent(item.content);
-        }
-      } else if (item.type === 'heading') {
-        const level = item.attrs?.level || 1;
-        const prefix = '#'.repeat(level);
-        text += `${prefix} `;
-        if (item.content) {
-          extractFromContent(item.content);
-        }
-      } else if (item.type === 'bulletList' || item.type === 'orderedList') {
-        if (item.content) {
-          extractFromContent(item.content);
-        }
-      } else if (item.type === 'listItem') {
-        text += '- ';
-        if (item.content) {
-          extractFromContent(item.content);
-        }
-      } else if (item.type === 'codeBlock') {
-        text += '```';
-        if (item.content) {
-          extractFromContent(item.content);
-        }
-        text += '```';
-      } else if (item.type === 'table') {
-        // Extract table as markdown
-        if (item.content) {
-          const rows: string[][] = [];
-          item.content.forEach((row: any) => {
-            if (row.type === 'tableRow' && row.content) {
-              const cells: string[] = [];
-              row.content.forEach((cell: any) => {
-                if ((cell.type === 'tableCell' || cell.type === 'tableHeader') && cell.content) {
-                  let cellText = '';
-                  const extractCellText = (cellContent: any[]) => {
-                    cellContent.forEach((cellItem: any) => {
-                      if (cellItem.type === 'paragraph' && cellItem.content) {
-                        cellItem.content.forEach((textItem: any) => {
-                          if (textItem.type === 'text' && textItem.text) {
-                            cellText += textItem.text;
-                          }
-                        });
-                      }
-                    });
-                  };
-                  extractCellText(cell.content);
-                  cells.push(cellText.trim());
-                }
-              });
-              if (cells.length > 0) {
-                rows.push(cells);
-              }
-            }
-          });
-
-          // Format as markdown table
-          if (rows.length > 0) {
-            const [headerRow, ...dataRows] = rows;
-
-            // Header row
-            text += '\n| ' + headerRow.join(' | ') + ' |\n';
-
-            // Separator row
-            text += '|' + headerRow.map(() => '--------').join('|') + '|\n';
-
-            // Data rows
-            dataRows.forEach(row => {
-              text += '| ' + row.join(' | ') + ' |\n';
-            });
-          }
-        }
-      } else if (item.content) {
-        extractFromContent(item.content);
-      }
-    }
-  };
-
-  extractFromContent(body.content);
-  return formatWikiMarkup(text.trim());
+  if (typeof body === 'string') return formatWikiMarkup(body);
+  if (!body.content) return formatWikiMarkup(String(body));
+  return formatWikiMarkup(adfNodeToText(body.content).trim());
 }
 
 /**
