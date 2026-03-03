@@ -135,7 +135,7 @@ export const jiraTools: ToolDefinition[] = [
   },
   {
     name: 'jira_update_issue',
-    description: 'Update an existing Jira issue',
+    description: 'Update an existing Jira issue. Supports standard fields and custom fields (use jira_get_fields to discover field IDs).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -154,6 +154,10 @@ export const jiraTools: ToolDefinition[] = [
         assignee: {
           type: 'string',
           description: 'Account ID of the assignee',
+        },
+        customFields: {
+          type: 'object',
+          description: 'Custom fields to update as key-value pairs. Use jira_get_fields to find field IDs. E.g. {"customfield_10022": 123, "customfield_10015": "value"}',
         },
       },
       required: ['issueKey'],
@@ -591,7 +595,7 @@ export const jiraTools: ToolDefinition[] = [
   },
   {
     name: 'jira_get_fields',
-    description: 'Get available fields in Jira. Use this to discover field IDs for use with jira_search_issues fields parameter.',
+    description: 'Search and discover available Jira fields. Use this to find field IDs (e.g. search "sprint" to find the Sprint custom field ID) for use with jira_get_issue and jira_search_issues fields parameter.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -599,6 +603,10 @@ export const jiraTools: ToolDefinition[] = [
           type: 'string',
           enum: ['standard', 'custom', 'all'],
           description: 'Filter by field type: "standard" for built-in fields, "custom" for custom fields, "all" for both (default: "all")',
+        },
+        query: {
+          type: 'string',
+          description: 'Search fields by name or ID (case-insensitive). E.g. "sprint", "story points", "epic"',
         },
       },
     },
@@ -754,6 +762,25 @@ export const jiraTools: ToolDefinition[] = [
         },
       },
       required: ['sprintId'],
+    },
+  },
+  {
+    name: 'jira_move_issues_to_sprint',
+    description: 'Move one or more issues to a sprint',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sprintId: {
+          type: 'number',
+          description: 'The sprint ID to move issues to. Use jira_get_sprints to find sprint IDs.',
+        },
+        issueKeys: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Issue keys to move, e.g. ["PROJ-123", "PROJ-456"]',
+        },
+      },
+      required: ['sprintId', 'issueKeys'],
     },
   },
   {

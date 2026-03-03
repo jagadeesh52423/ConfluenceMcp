@@ -29,6 +29,20 @@ export class JiraHandlers {
     limit?: number;
   }): Promise<ToolResponse> {
     const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit } = args;
+    if (fields !== undefined && !Array.isArray(fields)) {
+      return errorResponse(new Error('Invalid fields parameter'), {
+        operation: 'Failed to search Jira issues',
+        params: {},
+        tip: 'The "fields" parameter must be an array of strings, e.g. ["summary", "status", "customfield_10020"]. Do not pass it as a string.',
+      });
+    }
+    if (labels !== undefined && !Array.isArray(labels)) {
+      return errorResponse(new Error('Invalid labels parameter'), {
+        operation: 'Failed to search Jira issues',
+        params: {},
+        tip: 'The "labels" parameter must be an array of strings, e.g. ["bug", "urgent"]. Do not pass it as a string.',
+      });
+    }
     try {
       const issues = await this.service.searchIssues({ query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit });
       return jsonResponse(issues);
@@ -43,6 +57,13 @@ export class JiraHandlers {
 
   async getIssue(args: { issueKey: string; fields?: string[] }): Promise<ToolResponse> {
     const { issueKey, fields } = args;
+    if (fields !== undefined && !Array.isArray(fields)) {
+      return errorResponse(new Error('Invalid fields parameter'), {
+        operation: 'Failed to get Jira issue',
+        params: { 'Issue Key': issueKey },
+        tip: 'The "fields" parameter must be an array of strings, e.g. ["summary", "status", "customfield_10020"]. Do not pass it as a string.',
+      });
+    }
     try {
       const issue = await this.service.getIssue(issueKey, fields);
       return jsonResponse(issue);
@@ -115,15 +136,17 @@ export class JiraHandlers {
     summary?: string;
     description?: string;
     assignee?: string;
+    customFields?: Record<string, any>;
   }): Promise<ToolResponse> {
-    const { issueKey, summary, description, assignee } = args;
+    const { issueKey, summary, description, assignee, customFields } = args;
     try {
-      const issue = await this.service.updateIssue(issueKey, { summary, description, assignee });
+      const issue = await this.service.updateIssue(issueKey, { summary, description, assignee, customFields });
 
       const updatedFields: string[] = [];
       if (summary) updatedFields.push(`${ICONS.SUMMARY} **Summary:** Updated to "${issue.summary}"`);
       if (description) updatedFields.push(`${ICONS.DESCRIPTION} **Description:** Updated successfully`);
       if (assignee) updatedFields.push(`${ICONS.ASSIGNEE} **Assignee:** ${issue.assignee || assignee}`);
+      if (customFields) updatedFields.push(`**Custom Fields:** ${Object.keys(customFields).join(', ')} updated`);
 
       const updatedFieldsText = updatedFields.length > 0 ? `\n\n**Updated Fields:**\n${updatedFields.join('\n')}` : '';
       const domain = process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net';
@@ -569,11 +592,11 @@ export class JiraHandlers {
     }
   }
 
-  async getFields(args: { type?: string }): Promise<ToolResponse> {
-    const { type } = args;
+  async getFields(args: { type?: string; query?: string }): Promise<ToolResponse> {
+    const { type, query } = args;
     try {
       const filterType = (type === 'standard' || type === 'custom') ? type : undefined;
-      const fields = await this.service.getFields(filterType);
+      const fields = await this.service.getFields(filterType, query);
       return jsonResponse(fields);
     } catch (error: any) {
       return errorResponse(error, {
@@ -681,6 +704,30 @@ export class JiraHandlers {
       return errorResponse(error, {
         operation: 'Failed to get sprint issues',
         params: { 'Sprint ID': sprintId, JQL: jql || 'none' },
+        tip: ERROR_TIPS.JIRA_AGILE,
+      });
+    }
+  }
+
+  async moveIssuesToSprint(args: { sprintId: number; issueKeys: string[] }): Promise<ToolResponse> {
+    const { sprintId, issueKeys } = args;
+    if (!Array.isArray(issueKeys)) {
+      return errorResponse(new Error('Invalid issueKeys parameter'), {
+        operation: 'Failed to move issues to sprint',
+        params: { 'Sprint ID': sprintId },
+        tip: 'The "issueKeys" parameter must be an array of strings, e.g. ["PROJ-123", "PROJ-456"]. Do not pass it as a string.',
+      });
+    }
+    try {
+      await this.service.moveIssuesToSprint(sprintId, issueKeys);
+      return successResponse(
+        `${ICONS.SUCCESS} **Moved ${issueKeys.length} issue(s) to sprint ${sprintId}**\n\n` +
+        `**Issues:** ${issueKeys.join(', ')}`
+      );
+    } catch (error: any) {
+      return errorResponse(error, {
+        operation: 'Failed to move issues to sprint',
+        params: { 'Sprint ID': sprintId, Issues: issueKeys.join(', ') },
         tip: ERROR_TIPS.JIRA_AGILE,
       });
     }

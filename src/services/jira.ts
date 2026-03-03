@@ -221,7 +221,7 @@ export class JiraService {
 
   async updateIssue(
     issueKey: string,
-    fields: { summary?: string; description?: string; assignee?: string }
+    fields: { summary?: string; description?: string; assignee?: string; customFields?: Record<string, any> }
   ): Promise<JiraIssue> {
     const updateFields: any = {};
 
@@ -238,6 +238,12 @@ export class JiraService {
       updateFields.assignee = { accountId: fields.assignee };
     }
 
+    if (fields.customFields) {
+      for (const [key, value] of Object.entries(fields.customFields)) {
+        updateFields[key] = value;
+      }
+    }
+
     const data = { fields: updateFields };
     await this.client.put(`/rest/api/3/issue/${issueKey}`, data);
 
@@ -250,9 +256,9 @@ export class JiraService {
         transition: { id: transitionId }
       };
 
-      // Add field values if provided
-      if (fieldValues) {
-        data.fields = fieldValues;
+      // Normalize and add field values if provided
+      if (fieldValues && Object.keys(fieldValues).length > 0) {
+        data.fields = await this.normalizeFieldValues(issueKey, transitionId, fieldValues);
       }
 
       await this.client.post(`/rest/api/3/issue/${issueKey}/transitions`, data);
@@ -264,7 +270,7 @@ export class JiraService {
     } catch (error: any) {
       // Check if this is a required field error
       if (error.response?.status === 400) {
-        const requiredFields = await this.handleTransitionError(issueKey, transitionId, error);
+        const requiredFields = await this.handleTransitionError(issueKey, transitionId, error, fieldValues);
         if (requiredFields.length > 0) {
           return {
             success: false,
@@ -279,6 +285,74 @@ export class JiraService {
 
       // Re-throw if not a field validation error
       throw error;
+    }
+  }
+
+  /**
+   * Normalize field values to the format Jira API expects.
+   * Fetches transition metadata to understand field types and converts:
+   * - String values like "No" → { id: "10341" } by matching against allowedValues
+   * - { value: "No" } → { id: "10341" } by matching against allowedValues
+   * - { id: "10341" } → kept as-is
+   */
+  private async normalizeFieldValues(
+    issueKey: string,
+    transitionId: string,
+    fieldValues: Record<string, any>
+  ): Promise<Record<string, any>> {
+    try {
+      const response = await this.client.get<any>(
+        `/rest/api/3/issue/${issueKey}/transitions`,
+        { expand: 'transitions.fields' }
+      );
+      const transition = response.transitions?.find((t: any) => t.id === transitionId);
+
+      if (!transition?.fields) {
+        return fieldValues;
+      }
+
+      const normalized: Record<string, any> = {};
+      for (const [key, value] of Object.entries(fieldValues)) {
+        const fieldMeta = transition.fields[key];
+        if (!fieldMeta?.allowedValues || !Array.isArray(fieldMeta.allowedValues)) {
+          // No allowed values metadata — pass through as-is
+          normalized[key] = value;
+          continue;
+        }
+
+        const allowedValues: Array<{ id: string; value: string }> = fieldMeta.allowedValues;
+
+        if (typeof value === 'string') {
+          // String like "No" → find matching option by value or name, convert to { id: "..." }
+          const match = allowedValues.find(
+            opt => opt.value?.toLowerCase() === value.toLowerCase() ||
+                   (opt as any).name?.toLowerCase() === value.toLowerCase()
+          );
+          normalized[key] = match ? { id: match.id } : value;
+        } else if (typeof value === 'object' && value !== null) {
+          if (value.id) {
+            // Already in { id: "..." } format — verify the ID exists
+            const match = allowedValues.find(opt => opt.id === value.id);
+            normalized[key] = match ? { id: match.id } : value;
+          } else if (value.value) {
+            // { value: "No" } → find matching option by value, convert to { id: "..." }
+            const match = allowedValues.find(
+              opt => opt.value?.toLowerCase() === value.value.toLowerCase() ||
+                     (opt as any).name?.toLowerCase() === value.value.toLowerCase()
+            );
+            normalized[key] = match ? { id: match.id } : value;
+          } else {
+            normalized[key] = value;
+          }
+        } else {
+          normalized[key] = value;
+        }
+      }
+
+      return normalized;
+    } catch {
+      // If metadata fetch fails, pass through original values
+      return fieldValues;
     }
   }
 
@@ -644,7 +718,7 @@ export class JiraService {
 
   // Field Discovery Methods
 
-  async getFields(type?: 'standard' | 'custom'): Promise<any[]> {
+  async getFields(type?: 'standard' | 'custom', query?: string): Promise<any[]> {
     const response = await this.client.get<any>('/rest/api/3/field');
 
     let fields = response.map((f: any) => ({
@@ -658,6 +732,11 @@ export class JiraService {
       fields = fields.filter((f: any) => !f.custom);
     } else if (type === 'custom') {
       fields = fields.filter((f: any) => f.custom);
+    }
+
+    if (query) {
+      const q = query.toLowerCase();
+      fields = fields.filter((f: any) => f.name.toLowerCase().includes(q) || f.id.toLowerCase().includes(q));
     }
 
     return fields.sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -813,6 +892,12 @@ export class JiraService {
         priority: issue.fields?.priority?.name || '',
       })) || [],
     };
+  }
+
+  async moveIssuesToSprint(sprintId: number, issueKeys: string[]): Promise<void> {
+    await this.client.post(`/rest/agile/1.0/sprint/${sprintId}/issue`, {
+      issues: issueKeys,
+    });
   }
 
   // Batch Create
@@ -981,11 +1066,19 @@ export class JiraService {
 
   // Smart Field Handling Methods
 
-  private async handleTransitionError(issueKey: string, transitionId: string, error: any): Promise<JiraRequiredField[]> {
+  private async handleTransitionError(
+    issueKey: string,
+    transitionId: string,
+    error: any,
+    providedFieldValues?: Record<string, any>
+  ): Promise<JiraRequiredField[]> {
     try {
       // Get transition metadata with field information
-      const response = await this.client.get<any>(`/rest/api/3/issue/${issueKey}/transitions?expand=transitions.fields`);
-      const transition = response.transitions.find((t: any) => t.id === transitionId);
+      const response = await this.client.get<any>(
+        `/rest/api/3/issue/${issueKey}/transitions`,
+        { expand: 'transitions.fields' }
+      );
+      const transition = response.transitions?.find((t: any) => t.id === transitionId);
 
       if (!transition || !transition.fields) {
         return [];
@@ -994,12 +1087,29 @@ export class JiraService {
       // Get issue details for context
       const issue = await this.getIssue(issueKey);
 
-      // Analyze required fields and fields that may need values
+      // Parse Jira error response to identify specifically failed fields
+      const errorFields = new Set<string>();
+      const errorData = error.response?.data;
+      if (errorData?.errors) {
+        for (const key of Object.keys(errorData.errors)) {
+          errorFields.add(key);
+        }
+      }
+
+      // Analyze only required fields or fields that specifically failed
       const requiredFields: JiraRequiredField[] = [];
+      const providedKeys = new Set(Object.keys(providedFieldValues || {}));
+
       for (const [fieldKey, fieldInfo] of Object.entries(transition.fields) as [string, any][]) {
-        // Process all fields that have validation requirements or are commonly needed
-        const field = this.analyzeField(fieldKey, fieldInfo, issue);
-        requiredFields.push(field);
+        const isRequired = fieldInfo.required === true;
+        const isErrorField = errorFields.has(fieldKey);
+        const wasProvided = providedKeys.has(fieldKey);
+
+        // Include field if: it's required and not provided, or it specifically failed
+        if ((isRequired && !wasProvided) || isErrorField) {
+          const field = this.analyzeField(fieldKey, fieldInfo, issue);
+          requiredFields.push(field);
+        }
       }
 
       return requiredFields;
@@ -1092,34 +1202,35 @@ export class JiraService {
 
   // Enhanced transition method with smart field handling
   async transitionIssueInteractive(issueKey: string, transitionId: string, providedFields?: Record<string, any>): Promise<JiraTransitionResponse> {
-    // First attempt with provided fields
+    // First attempt: normalize provided fields and try transition
     const result = await this.transitionIssue(issueKey, transitionId, providedFields);
 
     if (result.success || !result.requiresInput) {
       return result;
     }
 
-    // If user provided fields but still failed, try to auto-fill based on suggestions
+    // If transition failed, auto-fill missing required fields from suggestions and retry
     if (result.requiredFields && result.requiredFields.length > 0) {
       const autoFields: Record<string, any> = { ...providedFields };
-      let hasAutoSuggestions = false;
+      const autoFilledNames: string[] = [];
 
       for (const field of result.requiredFields) {
-        if (field.suggestion && !autoFields[field.key]) {
+        if (field.suggestion) {
+          // Always apply suggestion for required fields that are still missing/failed
           if (field.suggestion.id) {
             autoFields[field.key] = { id: field.suggestion.id };
           } else {
             autoFields[field.key] = field.suggestion.value;
           }
-          hasAutoSuggestions = true;
+          autoFilledNames.push(`${field.name}="${field.suggestion.value}"`);
         }
       }
 
-      // Try transition again with auto-filled suggestions
-      if (hasAutoSuggestions) {
+      // Retry if we have any auto-filled suggestions
+      if (autoFilledNames.length > 0) {
         const retryResult = await this.transitionIssue(issueKey, transitionId, autoFields);
         if (retryResult.success) {
-          retryResult.message = `${retryResult.message} (auto-filled based on smart suggestions)`;
+          retryResult.message = `${retryResult.message} (auto-filled: ${autoFilledNames.join(', ')})`;
         }
         return retryResult;
       }

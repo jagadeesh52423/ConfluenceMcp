@@ -232,6 +232,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> =>
       case 'jira_get_sprint_issues':
         return jiraHandlers.getSprintIssues(args as any);
 
+      case 'jira_move_issues_to_sprint':
+        return jiraHandlers.moveIssuesToSprint(args as any);
+
       case 'jira_batch_create_issues':
         return jiraHandlers.batchCreateIssues(args as any);
 
