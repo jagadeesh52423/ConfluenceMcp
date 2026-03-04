@@ -128,29 +128,140 @@ export function extractTextFromADF(body: any): string {
 }
 
 /**
- * Formats wiki markup to cleaner text
+ * Converts wiki-style tables (||header||col||) to markdown tables.
+ * Only converts blocks that start with || (header row), leaving existing
+ * markdown tables untouched.
+ */
+function convertWikiTablesToMarkdown(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+
+    // Only enter table mode when we see a wiki header row (||…)
+    if (line.startsWith('||')) {
+      const tableLines: string[] = [];
+      while (i < lines.length) {
+        const tl = lines[i].trim();
+        if (tl.startsWith('||') || tl.startsWith('|')) {
+          tableLines.push(tl);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      const markdownRows: string[] = [];
+      let headerDone = false;
+      for (const tl of tableLines) {
+        if (tl.startsWith('||')) {
+          const cells = tl.split('||').map(c => c.trim()).filter(c => c !== '');
+          markdownRows.push('| ' + cells.join(' | ') + ' |');
+          if (!headerDone) {
+            markdownRows.push('| ' + cells.map(() => '---').join(' | ') + ' |');
+            headerDone = true;
+          }
+        } else {
+          const cells = tl.split('|').map(c => c.trim()).filter(c => c !== '');
+          if (cells.length > 0) markdownRows.push('| ' + cells.join(' | ') + ' |');
+        }
+      }
+      result.push(...markdownRows);
+    } else {
+      result.push(lines[i]);
+      i++;
+    }
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Formats wiki markup to cleaner markdown text.
+ *
+ * Handles (in order):
+ *  - {code} / {noformat} blocks  → fenced code (extracted as placeholders first
+ *    so their contents are never touched by later transforms)
+ *  - Wiki tables ||h||            → markdown tables (pre-pass)
+ *  - {quote}                      → > blockquote
+ *  - {note}/{warning}/{info}/{tip}→ labelled blockquote
+ *  - [text|url] / [~user] / [url] → markdown links / @mention / bare URL
+ *  - \\                           → newline
+ *  - # item / ## item             → 1. / nested ordered list (wiki list syntax)
+ *  - h1. … h6.                    → # … ###### (must come AFTER list conversion)
+ *  - ---- / {panel} / {color} / checkboxes  (existing)
  */
 export function formatWikiMarkup(text: string): string {
   if (!text) return '';
 
-  return text
-    // Convert Confluence headers to markdown headers
-    .replace(/^h([1-6])\.\s*/gm, (match, level) => '#'.repeat(parseInt(level)) + ' ')
-    // Convert horizontal rules
+  // --- Phase 1: extract code/noformat blocks into placeholders so their
+  //              contents survive all subsequent regex transforms safely ---
+  const codeStore: string[] = [];
+
+  text = text.replace(/\{code(?::(?:language=)?(\w+))?\}([\s\S]*?)\{code\}/g, (_full, lang, code) => {
+    const langStr = lang ? lang.toLowerCase() : '';
+    const idx = codeStore.length;
+    codeStore.push(`\`\`\`${langStr}\n${code.replace(/^\n/, '').replace(/\n$/, '')}\n\`\`\``);
+    return `\x00CODE_${idx}\x00`;
+  });
+
+  text = text.replace(/\{noformat(?:[^}]*)?\}([\s\S]*?)\{noformat\}/g, (_full, code) => {
+    const idx = codeStore.length;
+    codeStore.push(`\`\`\`\n${code.replace(/^\n/, '').replace(/\n$/, '')}\n\`\`\``);
+    return `\x00CODE_${idx}\x00`;
+  });
+
+  // --- Phase 2: pre-process wiki tables ---
+  text = convertWikiTablesToMarkdown(text);
+
+  // --- Phase 3: remaining transforms ---
+  text = text
+    // {quote} blocks → blockquotes
+    .replace(/\{quote\}([\s\S]*?)\{quote\}/g, (_full, content) =>
+      content.trim().split('\n').map((l: string) => `> ${l}`).join('\n')
+    )
+    // Notification panels {note:…}…{note} etc.
+    .replace(/\{(note|info|tip|warning)(?::[^}]*)?\}([\s\S]*?)\{\1\}/g, (_full, type, content) => {
+      const label = type.charAt(0).toUpperCase() + type.slice(1);
+      const ls = content.trim().split('\n');
+      return `> **[${label}]** ${ls[0]}` +
+        (ls.length > 1 ? '\n' + ls.slice(1).map((l: string) => `> ${l}`).join('\n') : '');
+    })
+    // Wiki links [text|url] → markdown
+    .replace(/\[([^\]|]+)\|([^\]]+)\]/g, '[$1]($2)')
+    // User mentions [~username] → @username
+    .replace(/\[~([^\]]+)\]/g, '@$1')
+    // Bare URL in brackets [https://…] → plain URL
+    .replace(/\[([a-z]+:\/\/[^\]]+)\]/g, '$1')
+    // Wiki line break \\ → newline
+    .replace(/\\\\/g, '\n')
+    // Wiki ordered lists (# item, ## nested) — MUST precede header conversion
+    // because in wiki markup headings are h1./h2. (never bare #)
+    .replace(/^(#+) /gm, (_, hashes) => '  '.repeat(hashes.length - 1) + '1. ')
+    // Confluence headers h1.–h6. → markdown #–######
+    .replace(/^h([1-6])\.\s*/gm, (_match, level) => '#'.repeat(parseInt(level)) + ' ')
+    // Horizontal rules
     .replace(/^----+$/gm, '---')
-    // Handle panels - convert to blockquotes for better readability
+    // Panels → blockquotes
     .replace(/\{panel:title=([^|]*)[^}]*\}/g, '\n> **$1**\n>')
     .replace(/\{panel\}/g, '\n')
-    // Handle colored text/backgrounds - keep the text but remove styling
+    // Colored text — strip styling, keep content
     .replace(/\{color:[^}]*\}([^{]*)\{color\}/g, '$1')
-    // Convert checkboxes
+    // Checkboxes
     .replace(/☐/g, '- [ ]')
     .replace(/☑/g, '- [x]')
-    // Clean up multiple newlines
+    // Tidy up
     .replace(/\n{3,}/g, '\n\n')
-    // Ensure proper spacing around headers
-    .replace(/\n(#{1,6}\s)/g, '\n\n$1')
-    .trim();
+    .replace(/\n(#{1,6}\s)/g, '\n\n$1');
+
+  // --- Phase 4: restore code blocks ---
+  codeStore.forEach((code, idx) => {
+    text = text.replace(`\x00CODE_${idx}\x00`, code);
+  });
+
+  return text.trim();
 }
 
 /**
@@ -278,7 +389,8 @@ export function parseInlineFormatting(text: string): any[] {
  * Enhanced description parser that converts text to proper ADF format
  */
 export function parseDescriptionToADF(description: string): any {
-  const lines = description.split('\n');
+  // Normalise wiki-style tables (||header||) to markdown before line processing
+  const lines = convertWikiTablesToMarkdown(description).split('\n');
   const content: any[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -618,6 +730,20 @@ export function parseDescriptionToWikiMarkup(description: string): string {
 
     if (line === '') {
       result.push('');
+      continue;
+    }
+
+    // Handle blockquotes (> text) — collect consecutive lines and wrap in {quote}
+    if (line.startsWith('> ')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('> ')) {
+        quoteLines.push(lines[i].trim().substring(2).trim());
+        i++;
+      }
+      i--; // back up — outer loop will increment
+      result.push('{quote}');
+      result.push(...quoteLines);
+      result.push('{quote}');
       continue;
     }
 
