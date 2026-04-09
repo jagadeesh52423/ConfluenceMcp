@@ -9,6 +9,7 @@ import {
 } from '../error-handler.js';
 import { ICONS } from '../constants.js';
 import { BaseHandler } from './base-handler.js';
+import { withPayloadPersistence } from '../utils/payload-saver.js';
 
 /**
  * Jira tool handlers
@@ -80,42 +81,44 @@ export class JiraHandlers extends BaseHandler {
     customFields?: Record<string, any>;
   }): Promise<ToolResponse> {
     const { projectKey, summary, description, issueType, duedate, priority, labels, components, assignee, customFields } = args;
-    return this.handle(
-      () => this.service.createIssue(projectKey, summary, description, issueType, { duedate, priority, labels, components, assignee, customFields }),
-      {
-        operation: 'Failed to create Jira issue',
-        params: {
-          Project: projectKey,
-          Summary: summary,
-          'Issue Type': issueType || 'Task',
-          'Due Date': duedate || 'none',
-          Priority: priority || 'none',
-          Labels: labels?.join(', ') || 'none',
-          Components: components?.join(', ') || 'none',
-          Assignee: assignee || 'none',
+    return withPayloadPersistence('jira-create-issue', args, () =>
+      this.handle(
+        () => this.service.createIssue(projectKey, summary, description, issueType, { duedate, priority, labels, components, assignee, customFields }),
+        {
+          operation: 'Failed to create Jira issue',
+          params: {
+            Project: projectKey,
+            Summary: summary,
+            'Issue Type': issueType || 'Task',
+            'Due Date': duedate || 'none',
+            Priority: priority || 'none',
+            Labels: labels?.join(', ') || 'none',
+            Components: components?.join(', ') || 'none',
+            Assignee: assignee || 'none',
+          },
+          tip: ERROR_TIPS.JIRA_ISSUE_CREATE + ' For custom fields, ensure field IDs are correct.',
         },
-        tip: ERROR_TIPS.JIRA_ISSUE_CREATE + ' For custom fields, ensure field IDs are correct.',
-      },
-      (issue) => {
-        const optionalFields: string[] = [];
-        if (duedate) optionalFields.push(`${ICONS.DATE} **Due Date:** ${duedate}`);
-        if (priority) optionalFields.push(`${ICONS.PRIORITY} **Priority:** ${priority}`);
-        if (labels && labels.length > 0) optionalFields.push(`${ICONS.LABELS} **Labels:** ${labels.join(', ')}`);
-        if (components && components.length > 0) optionalFields.push(`${ICONS.COMPONENTS} **Components:** ${components.join(', ')}`);
-        if (assignee) optionalFields.push(`${ICONS.ASSIGNEE} **Assignee:** ${issue.assignee || assignee}`);
-        const optionalFieldsText = optionalFields.length > 0 ? `\n\n${optionalFields.join('\n')}` : '';
-        const domain = process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net';
-        return successResponse(
-          `${ICONS.SUCCESS} **Jira Issue Created Successfully**\n\n` +
-          `${ICONS.TICKET} **Issue Key:** ${issue.key}\n` +
-          `${ICONS.SUMMARY} **Summary:** ${issue.summary}\n` +
-          `📋 **Issue Type:** ${issueType || 'Task'}\n` +
-          `${ICONS.STATUS} **Status:** ${issue.status}\n` +
-          `${ICONS.DATE} **Created:** ${new Date(issue.created).toLocaleString()}${optionalFieldsText}\n\n` +
-          `${ICONS.DESCRIPTION} **Description:** Successfully created with provided content\n\n` +
-          `${ICONS.LINK} **Issue URL:** [View Issue](https://${domain}/browse/${issue.key})`
-        );
-      }
+        (issue) => {
+          const optionalFields: string[] = [];
+          if (duedate) optionalFields.push(`${ICONS.DATE} **Due Date:** ${duedate}`);
+          if (priority) optionalFields.push(`${ICONS.PRIORITY} **Priority:** ${priority}`);
+          if (labels && labels.length > 0) optionalFields.push(`${ICONS.LABELS} **Labels:** ${labels.join(', ')}`);
+          if (components && components.length > 0) optionalFields.push(`${ICONS.COMPONENTS} **Components:** ${components.join(', ')}`);
+          if (assignee) optionalFields.push(`${ICONS.ASSIGNEE} **Assignee:** ${issue.assignee || assignee}`);
+          const optionalFieldsText = optionalFields.length > 0 ? `\n\n${optionalFields.join('\n')}` : '';
+          const domain = process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net';
+          return successResponse(
+            `${ICONS.SUCCESS} **Jira Issue Created Successfully**\n\n` +
+            `${ICONS.TICKET} **Issue Key:** ${issue.key}\n` +
+            `${ICONS.SUMMARY} **Summary:** ${issue.summary}\n` +
+            `📋 **Issue Type:** ${issueType || 'Task'}\n` +
+            `${ICONS.STATUS} **Status:** ${issue.status}\n` +
+            `${ICONS.DATE} **Created:** ${new Date(issue.created).toLocaleString()}${optionalFieldsText}\n\n` +
+            `${ICONS.DESCRIPTION} **Description:** Successfully created with provided content\n\n` +
+            `${ICONS.LINK} **Issue URL:** [View Issue](https://${domain}/browse/${issue.key})`
+          );
+        }
+      )
     );
   }
 
@@ -127,38 +130,42 @@ export class JiraHandlers extends BaseHandler {
     customFields?: Record<string, any>;
   }): Promise<ToolResponse> {
     const { issueKey, summary, description, assignee, customFields } = args;
-    return this.handle(
-      () => this.service.updateIssue(issueKey, { summary, description, assignee, customFields }),
-      {
-        operation: `Failed to update Jira issue ${issueKey}`,
-        params: { Summary: summary || 'unchanged', Description: description || 'unchanged', Assignee: assignee || 'unchanged' },
-        tip: ERROR_TIPS.JIRA_ISSUE_EDIT,
-      },
-      (issue) => {
-        const updatedFields: string[] = [];
-        if (summary) updatedFields.push(`${ICONS.SUMMARY} **Summary:** Updated to "${issue.summary}"`);
-        if (description) updatedFields.push(`${ICONS.DESCRIPTION} **Description:** Updated successfully`);
-        if (assignee) updatedFields.push(`${ICONS.ASSIGNEE} **Assignee:** ${issue.assignee || assignee}`);
-        if (customFields) updatedFields.push(`**Custom Fields:** ${Object.keys(customFields).join(', ')} updated`);
-        const updatedFieldsText = updatedFields.length > 0 ? `\n\n**Updated Fields:**\n${updatedFields.join('\n')}` : '';
-        const domain = process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net';
-        return successResponse(
-          `${ICONS.SUCCESS} **Jira Issue Updated Successfully**\n\n` +
-          `${ICONS.TICKET} **Issue Key:** ${issue.key}\n` +
-          `${ICONS.STATUS} **Current Status:** ${issue.status}\n` +
-          `${ICONS.DATE} **Last Updated:** ${new Date(issue.updated).toLocaleString()}${updatedFieldsText}\n\n` +
-          `${ICONS.LINK} **Issue URL:** [View Issue](https://${domain}/browse/${issue.key})`
-        );
-      }
+    return withPayloadPersistence('jira-update-issue', args, () =>
+      this.handle(
+        () => this.service.updateIssue(issueKey, { summary, description, assignee, customFields }),
+        {
+          operation: `Failed to update Jira issue ${issueKey}`,
+          params: { Summary: summary || 'unchanged', Description: description || 'unchanged', Assignee: assignee || 'unchanged' },
+          tip: ERROR_TIPS.JIRA_ISSUE_EDIT,
+        },
+        (issue) => {
+          const updatedFields: string[] = [];
+          if (summary) updatedFields.push(`${ICONS.SUMMARY} **Summary:** Updated to "${issue.summary}"`);
+          if (description) updatedFields.push(`${ICONS.DESCRIPTION} **Description:** Updated successfully`);
+          if (assignee) updatedFields.push(`${ICONS.ASSIGNEE} **Assignee:** ${issue.assignee || assignee}`);
+          if (customFields) updatedFields.push(`**Custom Fields:** ${Object.keys(customFields).join(', ')} updated`);
+          const updatedFieldsText = updatedFields.length > 0 ? `\n\n**Updated Fields:**\n${updatedFields.join('\n')}` : '';
+          const domain = process.env.JIRA_DOMAIN || process.env.ATLASSIAN_DOMAIN || 'your-domain.atlassian.net';
+          return successResponse(
+            `${ICONS.SUCCESS} **Jira Issue Updated Successfully**\n\n` +
+            `${ICONS.TICKET} **Issue Key:** ${issue.key}\n` +
+            `${ICONS.STATUS} **Current Status:** ${issue.status}\n` +
+            `${ICONS.DATE} **Last Updated:** ${new Date(issue.updated).toLocaleString()}${updatedFieldsText}\n\n` +
+            `${ICONS.LINK} **Issue URL:** [View Issue](https://${domain}/browse/${issue.key})`
+          );
+        }
+      )
     );
   }
 
   async addComment(args: { issueKey: string; comment: string }): Promise<ToolResponse> {
     const { issueKey, comment } = args;
-    return this.handle(
-      () => this.service.addComment(issueKey, comment),
-      { operation: 'Failed to add comment to Jira issue', params: { 'Issue Key': issueKey, Comment: comment.substring(0, 100) + '...' }, tip: ERROR_TIPS.JIRA_COMMENT },
-      () => successResponse(`Comment added to issue ${issueKey}`)
+    return withPayloadPersistence('jira-add-comment', args, () =>
+      this.handle(
+        () => this.service.addComment(issueKey, comment),
+        { operation: 'Failed to add comment to Jira issue', params: { 'Issue Key': issueKey, Comment: comment.substring(0, 100) + '...' }, tip: ERROR_TIPS.JIRA_COMMENT },
+        () => successResponse(`Comment added to issue ${issueKey}`)
+      )
     );
   }
 
@@ -173,10 +180,12 @@ export class JiraHandlers extends BaseHandler {
 
   async updateComment(args: { issueKey: string; commentId: string; comment: string }): Promise<ToolResponse> {
     const { issueKey, commentId, comment } = args;
-    return this.handle(
-      () => this.service.updateComment(issueKey, commentId, comment),
-      { operation: 'Failed to update comment on Jira issue', params: { 'Issue Key': issueKey, 'Comment ID': commentId }, tip: 'Check if the comment exists, you are the author, and you have permission to edit it.' },
-      (result) => successResponse(`${ICONS.SUCCESS} Comment ${commentId} updated successfully on issue ${issueKey}\n\n${JSON.stringify(result, null, 2)}`)
+    return withPayloadPersistence('jira-update-comment', args, () =>
+      this.handle(
+        () => this.service.updateComment(issueKey, commentId, comment),
+        { operation: 'Failed to update comment on Jira issue', params: { 'Issue Key': issueKey, 'Comment ID': commentId }, tip: 'Check if the comment exists, you are the author, and you have permission to edit it.' },
+        (result) => successResponse(`${ICONS.SUCCESS} Comment ${commentId} updated successfully on issue ${issueKey}\n\n${JSON.stringify(result, null, 2)}`)
+      )
     );
   }
 
@@ -428,10 +437,12 @@ export class JiraHandlers extends BaseHandler {
 
   async createSubtask(args: { parentKey: string; summary: string; description: string }): Promise<ToolResponse> {
     const { parentKey, summary, description } = args;
-    return this.handle(
-      () => this.service.createSubTask(parentKey, summary, description),
-      { operation: 'Failed to create sub-task', params: { 'Parent Key': parentKey, Summary: summary }, tip: ERROR_TIPS.JIRA_SUBTASK },
-      (subtask) => successResponse(`Sub-task created: ${subtask.key}\n\n${JSON.stringify(subtask, null, 2)}`)
+    return withPayloadPersistence('jira-create-subtask', args, () =>
+      this.handle(
+        () => this.service.createSubTask(parentKey, summary, description),
+        { operation: 'Failed to create sub-task', params: { 'Parent Key': parentKey, Summary: summary }, tip: ERROR_TIPS.JIRA_SUBTASK },
+        (subtask) => successResponse(`Sub-task created: ${subtask.key}\n\n${JSON.stringify(subtask, null, 2)}`)
+      )
     );
   }
 
@@ -543,14 +554,16 @@ export class JiraHandlers extends BaseHandler {
 
   async batchCreateIssues(args: { issues: Array<{ projectKey: string; summary: string; description: string; issueType?: string; additionalFields?: Record<string, any> }> }): Promise<ToolResponse> {
     const { issues } = args;
-    return this.handle(
-      () => this.service.batchCreateIssues(issues),
-      { operation: 'Failed to batch create issues', params: { 'Issue Count': issues.length }, tip: ERROR_TIPS.JIRA_BATCH },
-      (result) => {
-        const successCount = result.issues?.length || 0;
-        const errorCount = result.errors?.length || 0;
-        return successResponse(`${ICONS.SUCCESS} Batch create completed: ${successCount} created, ${errorCount} errors\n\n${JSON.stringify(result, null, 2)}`);
-      }
+    return withPayloadPersistence('jira-batch-create-issues', args, () =>
+      this.handle(
+        () => this.service.batchCreateIssues(issues),
+        { operation: 'Failed to batch create issues', params: { 'Issue Count': issues.length }, tip: ERROR_TIPS.JIRA_BATCH },
+        (result) => {
+          const successCount = result.issues?.length || 0;
+          const errorCount = result.errors?.length || 0;
+          return successResponse(`${ICONS.SUCCESS} Batch create completed: ${successCount} created, ${errorCount} errors\n\n${JSON.stringify(result, null, 2)}`);
+        }
+      )
     );
   }
 
@@ -600,33 +613,37 @@ export class JiraHandlers extends BaseHandler {
 
   async createSprint(args: { boardId: number; name: string; startDate?: string; endDate?: string; goal?: string }): Promise<ToolResponse> {
     const { boardId, name, startDate, endDate, goal } = args;
-    return this.handle(
-      () => this.service.createSprint(boardId, name, { startDate, endDate, goal }),
-      { operation: 'Failed to create sprint', params: { 'Board ID': boardId, Name: name }, tip: ERROR_TIPS.JIRA_AGILE },
-      (sprint) => successResponse(
-        `${ICONS.SUCCESS} Sprint created successfully\n\n` +
-        `**ID:** ${sprint.id}\n` +
-        `**Name:** ${sprint.name}\n` +
-        `**State:** ${sprint.state}\n` +
-        (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
-        (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
-        (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+    return withPayloadPersistence('jira-create-sprint', args, () =>
+      this.handle(
+        () => this.service.createSprint(boardId, name, { startDate, endDate, goal }),
+        { operation: 'Failed to create sprint', params: { 'Board ID': boardId, Name: name }, tip: ERROR_TIPS.JIRA_AGILE },
+        (sprint) => successResponse(
+          `${ICONS.SUCCESS} Sprint created successfully\n\n` +
+          `**ID:** ${sprint.id}\n` +
+          `**Name:** ${sprint.name}\n` +
+          `**State:** ${sprint.state}\n` +
+          (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
+          (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
+          (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+        )
       )
     );
   }
 
   async updateSprint(args: { sprintId: number; name?: string; state?: string; startDate?: string; endDate?: string; goal?: string }): Promise<ToolResponse> {
     const { sprintId, name, state, startDate, endDate, goal } = args;
-    return this.handle(
-      () => this.service.updateSprint(sprintId, { name, state, startDate, endDate, goal }),
-      { operation: `Failed to update sprint ${sprintId}`, params: { 'Sprint ID': sprintId, Name: name || 'unchanged', State: state || 'unchanged' }, tip: ERROR_TIPS.JIRA_AGILE },
-      (sprint) => successResponse(
-        `${ICONS.SUCCESS} Sprint ${sprintId} updated successfully\n\n` +
-        `**Name:** ${sprint.name}\n` +
-        `**State:** ${sprint.state}\n` +
-        (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
-        (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
-        (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+    return withPayloadPersistence('jira-update-sprint', args, () =>
+      this.handle(
+        () => this.service.updateSprint(sprintId, { name, state, startDate, endDate, goal }),
+        { operation: `Failed to update sprint ${sprintId}`, params: { 'Sprint ID': sprintId, Name: name || 'unchanged', State: state || 'unchanged' }, tip: ERROR_TIPS.JIRA_AGILE },
+        (sprint) => successResponse(
+          `${ICONS.SUCCESS} Sprint ${sprintId} updated successfully\n\n` +
+          `**Name:** ${sprint.name}\n` +
+          `**State:** ${sprint.state}\n` +
+          (sprint.startDate ? `**Start:** ${sprint.startDate}\n` : '') +
+          (sprint.endDate ? `**End:** ${sprint.endDate}\n` : '') +
+          (sprint.goal ? `**Goal:** ${sprint.goal}` : '')
+        )
       )
     );
   }
@@ -642,33 +659,37 @@ export class JiraHandlers extends BaseHandler {
 
   async createVersion(args: { projectKey: string; name: string; description?: string; startDate?: string; releaseDate?: string; released?: boolean }): Promise<ToolResponse> {
     const { projectKey, name, description, startDate, releaseDate, released } = args;
-    return this.handle(
-      () => this.service.createVersion(projectKey, name, { description, startDate, releaseDate, released }),
-      { operation: 'Failed to create version', params: { 'Project Key': projectKey, Name: name }, tip: 'Check if the project exists and you have permission to manage versions.' },
-      (version) => successResponse(
-        `${ICONS.SUCCESS} Version created successfully\n\n` +
-        `**ID:** ${version.id}\n` +
-        `**Name:** ${version.name}\n` +
-        `**Released:** ${version.released}\n` +
-        (version.description ? `**Description:** ${version.description}\n` : '') +
-        (version.startDate ? `**Start Date:** ${version.startDate}\n` : '') +
-        (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+    return withPayloadPersistence('jira-create-version', args, () =>
+      this.handle(
+        () => this.service.createVersion(projectKey, name, { description, startDate, releaseDate, released }),
+        { operation: 'Failed to create version', params: { 'Project Key': projectKey, Name: name }, tip: 'Check if the project exists and you have permission to manage versions.' },
+        (version) => successResponse(
+          `${ICONS.SUCCESS} Version created successfully\n\n` +
+          `**ID:** ${version.id}\n` +
+          `**Name:** ${version.name}\n` +
+          `**Released:** ${version.released}\n` +
+          (version.description ? `**Description:** ${version.description}\n` : '') +
+          (version.startDate ? `**Start Date:** ${version.startDate}\n` : '') +
+          (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+        )
       )
     );
   }
 
   async updateVersion(args: { versionId: string; name?: string; description?: string; startDate?: string; releaseDate?: string; released?: boolean; archived?: boolean }): Promise<ToolResponse> {
     const { versionId, name, description, startDate, releaseDate, released, archived } = args;
-    return this.handle(
-      () => this.service.updateVersion(versionId, { name, description, startDate, releaseDate, released, archived }),
-      { operation: `Failed to update version ${versionId}`, params: { 'Version ID': versionId }, tip: 'Check if the version exists and you have permission to manage versions.' },
-      (version) => successResponse(
-        `${ICONS.SUCCESS} Version ${versionId} updated successfully\n\n` +
-        `**Name:** ${version.name}\n` +
-        `**Released:** ${version.released}\n` +
-        `**Archived:** ${version.archived}\n` +
-        (version.description ? `**Description:** ${version.description}\n` : '') +
-        (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+    return withPayloadPersistence('jira-update-version', args, () =>
+      this.handle(
+        () => this.service.updateVersion(versionId, { name, description, startDate, releaseDate, released, archived }),
+        { operation: `Failed to update version ${versionId}`, params: { 'Version ID': versionId }, tip: 'Check if the version exists and you have permission to manage versions.' },
+        (version) => successResponse(
+          `${ICONS.SUCCESS} Version ${versionId} updated successfully\n\n` +
+          `**Name:** ${version.name}\n` +
+          `**Released:** ${version.released}\n` +
+          `**Archived:** ${version.archived}\n` +
+          (version.description ? `**Description:** ${version.description}\n` : '') +
+          (version.releaseDate ? `**Release Date:** ${version.releaseDate}` : '')
+        )
       )
     );
   }

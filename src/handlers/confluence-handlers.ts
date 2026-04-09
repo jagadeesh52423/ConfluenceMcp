@@ -9,6 +9,7 @@ import {
 } from '../error-handler.js';
 import { ICONS, ERROR_MESSAGES } from '../constants.js';
 import { BaseHandler } from './base-handler.js';
+import { withPayloadPersistence } from '../utils/payload-saver.js';
 
 /**
  * Confluence tool handlers
@@ -50,20 +51,22 @@ export class ConfluenceHandlers extends BaseHandler {
     }>;
   }): Promise<ToolResponse> {
     const { spaceKey, title, content, parentId, images } = args;
-    return this.handle(
-      () => this.service.createPageWithImages(spaceKey, title, content, parentId, images),
-      {
-        operation: 'Failed to create Confluence page',
-        params: { 'Space Key': spaceKey, Title: title, 'Parent ID': parentId || 'none' },
-        tip: ERROR_TIPS.CONFLUENCE_PAGE_CREATE + (images?.length ? ' For images, ensure they are properly base64 encoded.' : ''),
-      },
-      (page) => {
-        const imageCount = images?.length || 0;
-        const resultText = imageCount > 0
-          ? `${ICONS.SUCCESS} Confluence page created successfully with ${imageCount} image(s)\n\n${JSON.stringify(page, null, 2)}`
-          : JSON.stringify(page, null, 2);
-        return successResponse(resultText);
-      }
+    return withPayloadPersistence('confluence-create-page', args, () =>
+      this.handle(
+        () => this.service.createPageWithImages(spaceKey, title, content, parentId, images),
+        {
+          operation: 'Failed to create Confluence page',
+          params: { 'Space Key': spaceKey, Title: title, 'Parent ID': parentId || 'none' },
+          tip: ERROR_TIPS.CONFLUENCE_PAGE_CREATE + (images?.length ? ' For images, ensure they are properly base64 encoded.' : ''),
+        },
+        (page) => {
+          const imageCount = images?.length || 0;
+          const resultText = imageCount > 0
+            ? `${ICONS.SUCCESS} Confluence page created successfully with ${imageCount} image(s)\n\n${JSON.stringify(page, null, 2)}`
+            : JSON.stringify(page, null, 2);
+          return successResponse(resultText);
+        }
+      )
     );
   }
 
@@ -74,10 +77,12 @@ export class ConfluenceHandlers extends BaseHandler {
     version: number;
   }): Promise<ToolResponse> {
     const { pageId, title, content, version } = args;
-    return this.handle(
-      () => this.service.updatePage(pageId, title, content, version),
-      { operation: 'Failed to update Confluence page', params: { 'Page ID': pageId, Title: title, Version: version }, tip: ERROR_TIPS.CONFLUENCE_PAGE_EDIT },
-      jsonResponse
+    return withPayloadPersistence('confluence-update-page', args, () =>
+      this.handle(
+        () => this.service.updatePage(pageId, title, content, version),
+        { operation: 'Failed to update Confluence page', params: { 'Page ID': pageId, Title: title, Version: version }, tip: ERROR_TIPS.CONFLUENCE_PAGE_EDIT },
+        jsonResponse
+      )
     );
   }
 
@@ -169,25 +174,27 @@ export class ConfluenceHandlers extends BaseHandler {
       };
     }
 
-    return this.handle(
-      () => this.service.embedImage(pageId, filename, fileContent, filePath, { alt, caption, width, align, position, headingText }),
-      {
-        operation: 'Failed to embed image in Confluence page',
-        params: { 'Page ID': pageId, [filePath ? 'File Path' : 'Filename']: filePath || filename, Position: position || 'bottom' },
-        tip: 'Check if the page exists, you have edit permission, and the file path exists or content is properly base64 encoded.',
-      },
-      (result) => {
-        const embeddedFilename = result.attachment.results?.[0]?.title || filename || filePath?.split('/').pop() || 'image';
-        return successResponse(
-          `${ICONS.SUCCESS} Image "${embeddedFilename}" attached and embedded successfully!\n\n` +
-          `**Attachment ID:** ${result.attachment.results?.[0]?.id}\n` +
-          `**Page Version:** ${result.page.version}\n` +
-          `**Position:** ${position || 'bottom'}\n` +
-          (align ? `**Alignment:** ${align}\n` : '') +
-          (width ? `**Width:** ${width}px\n` : '') +
-          (caption ? `**Caption:** ${caption}` : '')
-        );
-      }
+    return withPayloadPersistence('confluence-embed-image', args, () =>
+      this.handle(
+        () => this.service.embedImage(pageId, filename, fileContent, filePath, { alt, caption, width, align, position, headingText }),
+        {
+          operation: 'Failed to embed image in Confluence page',
+          params: { 'Page ID': pageId, [filePath ? 'File Path' : 'Filename']: filePath || filename, Position: position || 'bottom' },
+          tip: 'Check if the page exists, you have edit permission, and the file path exists or content is properly base64 encoded.',
+        },
+        (result) => {
+          const embeddedFilename = result.attachment.results?.[0]?.title || filename || filePath?.split('/').pop() || 'image';
+          return successResponse(
+            `${ICONS.SUCCESS} Image "${embeddedFilename}" attached and embedded successfully!\n\n` +
+            `**Attachment ID:** ${result.attachment.results?.[0]?.id}\n` +
+            `**Page Version:** ${result.page.version}\n` +
+            `**Position:** ${position || 'bottom'}\n` +
+            (align ? `**Alignment:** ${align}\n` : '') +
+            (width ? `**Width:** ${width}px\n` : '') +
+            (caption ? `**Caption:** ${caption}` : '')
+          );
+        }
+      )
     );
   }
 
@@ -202,28 +209,32 @@ export class ConfluenceHandlers extends BaseHandler {
 
   async addComment(args: { pageId: string; body: string }): Promise<ToolResponse> {
     const { pageId, body } = args;
-    return this.handle(
-      () => this.service.addComment(pageId, body),
-      { operation: 'Failed to add comment', params: { 'Page ID': pageId }, tip: 'Check if the page exists and you have permission to comment on it.' },
-      (comment) => successResponse(
-        `${ICONS.SUCCESS} Comment added successfully!\n\n` +
-        `**Comment ID:** ${comment.id}\n` +
-        `**Author:** ${comment.author}\n` +
-        `**Created:** ${comment.created}`
+    return withPayloadPersistence('confluence-add-comment', args, () =>
+      this.handle(
+        () => this.service.addComment(pageId, body),
+        { operation: 'Failed to add comment', params: { 'Page ID': pageId }, tip: 'Check if the page exists and you have permission to comment on it.' },
+        (comment) => successResponse(
+          `${ICONS.SUCCESS} Comment added successfully!\n\n` +
+          `**Comment ID:** ${comment.id}\n` +
+          `**Author:** ${comment.author}\n` +
+          `**Created:** ${comment.created}`
+        )
       )
     );
   }
 
   async updateComment(args: { commentId: string; body: string; version: number }): Promise<ToolResponse> {
     const { commentId, body, version } = args;
-    return this.handle(
-      () => this.service.updateComment(commentId, body, version),
-      { operation: 'Failed to update comment', params: { 'Comment ID': commentId, Version: version }, tip: 'Check if the comment exists, you have permission to edit it, and the version number is correct.' },
-      (comment) => successResponse(
-        `${ICONS.SUCCESS} Comment updated successfully!\n\n` +
-        `**Comment ID:** ${comment.id}\n` +
-        `**New Version:** ${comment.version}\n` +
-        `**Updated:** ${comment.updated}`
+    return withPayloadPersistence('confluence-update-comment', args, () =>
+      this.handle(
+        () => this.service.updateComment(commentId, body, version),
+        { operation: 'Failed to update comment', params: { 'Comment ID': commentId, Version: version }, tip: 'Check if the comment exists, you have permission to edit it, and the version number is correct.' },
+        (comment) => successResponse(
+          `${ICONS.SUCCESS} Comment updated successfully!\n\n` +
+          `**Comment ID:** ${comment.id}\n` +
+          `**New Version:** ${comment.version}\n` +
+          `**Updated:** ${comment.updated}`
+        )
       )
     );
   }
