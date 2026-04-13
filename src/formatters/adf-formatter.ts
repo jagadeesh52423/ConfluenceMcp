@@ -265,9 +265,30 @@ export function formatWikiMarkup(text: string): string {
 }
 
 /**
- * Parses inline formatting like **bold**, *italic*, `code`, {{code}}
+ * Detects whether the given text uses Jira/Confluence wiki markup rather than markdown.
+ * Returns true if any wiki-specific patterns are found.
  */
-export function parseInlineFormatting(text: string): any[] {
+function isWikiMarkup(text: string): boolean {
+  // h1. through h6. headings at line start
+  if (/^h[1-6]\.\s/m.test(text)) return true;
+  // {code} or {code:lang} blocks
+  if (/\{code[}:]/.test(text)) return true;
+  // [text|url] wiki links — pipe inside brackets is unambiguous wiki syntax
+  if (/\[[^\]\|]+\|[^\]]+\]/.test(text)) return true;
+  // ||header|| wiki table headers at line start
+  if (/^\|\|/m.test(text)) return true;
+  // {panel blocks
+  if (/\{panel/.test(text)) return true;
+
+  return false;
+}
+
+/**
+ * Parses inline formatting like **bold**, *italic*, `code`, {{code}}
+ * When wikiMode is true, single *text* is treated as bold (wiki convention).
+ * Also handles [text|url] wiki links and [text](url) markdown links.
+ */
+export function parseInlineFormatting(text: string, wikiMode: boolean = false): any[] {
   const result: any[] = [];
   let currentPos = 0;
 
@@ -282,18 +303,61 @@ export function parseInlineFormatting(text: string): any[] {
 
   let matches: any[] = [];
 
-  // Find all formatting matches
+  // Process links FIRST to avoid conflicts with brackets and formatting markers
+  // Wiki links: [text|url]
+  const wikiLinkRegex = /\[([^\]\|]+)\|([^\]]+)\]/g;
+  let wikiLinkMatch;
+  while ((wikiLinkMatch = wikiLinkRegex.exec(text)) !== null) {
+    matches.push({
+      start: wikiLinkMatch.index,
+      end: wikiLinkMatch.index + wikiLinkMatch[0].length,
+      text: wikiLinkMatch[1],
+      type: 'link',
+      href: wikiLinkMatch[2],
+      fullMatch: wikiLinkMatch[0]
+    });
+  }
+
+  // Markdown links: [text](url)
+  const mdLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let mdLinkMatch;
+  while ((mdLinkMatch = mdLinkRegex.exec(text)) !== null) {
+    // Only add if not overlapping with an already-found wiki link
+    const overlaps = matches.some(existing =>
+      (mdLinkMatch!.index >= existing.start && mdLinkMatch!.index < existing.end) ||
+      (mdLinkMatch!.index + mdLinkMatch![0].length > existing.start && mdLinkMatch!.index + mdLinkMatch![0].length <= existing.end)
+    );
+    if (!overlaps) {
+      matches.push({
+        start: mdLinkMatch.index,
+        end: mdLinkMatch.index + mdLinkMatch[0].length,
+        text: mdLinkMatch[1],
+        type: 'link',
+        href: mdLinkMatch[2],
+        fullMatch: mdLinkMatch[0]
+      });
+    }
+  }
+
+  // Find all formatting matches (skip regions already claimed by links)
   patterns.forEach(pattern => {
     let match;
     const regex = new RegExp(pattern.regex.source, 'g');
     while ((match = regex.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        text: match[1],
-        type: pattern.type,
-        fullMatch: match[0]
-      });
+      const overlapsLink = matches.some(existing =>
+        (match!.index >= existing.start && match!.index < existing.end) ||
+        (match!.index + match![0].length > existing.start && match!.index + match![0].length <= existing.end) ||
+        (match!.index <= existing.start && match!.index + match![0].length >= existing.end)
+      );
+      if (!overlapsLink) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          text: match[1],
+          type: pattern.type,
+          fullMatch: match[0]
+        });
+      }
     }
   });
 
@@ -307,16 +371,17 @@ export function parseInlineFormatting(text: string): any[] {
     tempText = tempText.substring(0, match.start) + ' '.repeat(match.end - match.start) + tempText.substring(match.end);
   });
 
-  // Now find italic patterns in the remaining text
-  const italicRegex = /\*([^*]+?)\*/g;
-  let italicMatch;
-  while ((italicMatch = italicRegex.exec(tempText)) !== null) {
+  // Now find single *text* patterns in the remaining text
+  // In wiki mode: *text* = bold (strong). In markdown mode: *text* = italic (em).
+  const singleStarRegex = /\*([^*]+?)\*/g;
+  let singleStarMatch;
+  while ((singleStarMatch = singleStarRegex.exec(tempText)) !== null) {
     matches.push({
-      start: italicMatch.index,
-      end: italicMatch.index + italicMatch[0].length,
-      text: italicMatch[1],
-      type: 'em',
-      fullMatch: italicMatch[0]
+      start: singleStarMatch.index,
+      end: singleStarMatch.index + singleStarMatch[0].length,
+      text: singleStarMatch[1],
+      type: wikiMode ? 'strong' : 'em',
+      fullMatch: singleStarMatch[0]
     });
   }
 
@@ -354,11 +419,19 @@ export function parseInlineFormatting(text: string): any[] {
     }
 
     // Add formatted text
-    result.push({
-      type: 'text',
-      text: match.text,
-      marks: [{ type: match.type }]
-    });
+    if (match.type === 'link') {
+      result.push({
+        type: 'text',
+        text: match.text,
+        marks: [{ type: 'link', attrs: { href: match.href } }]
+      });
+    } else {
+      result.push({
+        type: 'text',
+        text: match.text,
+        marks: [{ type: match.type }]
+      });
+    }
 
     currentPos = match.end;
   });
@@ -386,11 +459,29 @@ export function parseInlineFormatting(text: string): any[] {
 }
 
 /**
- * Enhanced description parser that converts text to proper ADF format
+ * Enhanced description parser that converts text to proper ADF format.
+ * Auto-detects wiki markup vs markdown and adjusts parsing accordingly.
  */
 export function parseDescriptionToADF(description: string): any {
-  // Normalise wiki-style tables (||header||) to markdown before line processing
-  const lines = convertWikiTablesToMarkdown(description).split('\n');
+  const wikiMode = isWikiMarkup(description);
+
+  // Extract {code}...{code} blocks before line-by-line processing (wiki mode only)
+  const codeBlockStore: { lang: string; code: string }[] = [];
+  let processedDesc = description;
+  if (wikiMode) {
+    processedDesc = description.replace(/\{code(?::([^}]*))?\}([\s\S]*?)\{code\}/g, (_full, params, code) => {
+      const idx = codeBlockStore.length;
+      let lang = '';
+      if (params) {
+        const langMatch = params.match(/(?:language=)?(\w+)/);
+        if (langMatch) lang = normalizeCodeLanguage(langMatch[1]);
+      }
+      codeBlockStore.push({ lang, code: code.replace(/^\n/, '').replace(/\n$/, '') });
+      return `\x00WIKICODE_${idx}\x00`;
+    });
+  }
+
+  const lines = processedDesc.split('\n');
   const content: any[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -398,6 +489,18 @@ export function parseDescriptionToADF(description: string): any {
 
     if (line === '') {
       // Skip empty lines - let Claude handle spacing naturally
+      continue;
+    }
+
+    // Restore wiki {code} block placeholders
+    const wikiCodeMatch = line.match(/^\x00WIKICODE_(\d+)\x00$/);
+    if (wikiCodeMatch) {
+      const { lang, code } = codeBlockStore[parseInt(wikiCodeMatch[1])];
+      content.push({
+        type: 'codeBlock',
+        attrs: lang ? { language: lang } : {},
+        content: [{ type: 'text', text: code }]
+      });
       continue;
     }
 
@@ -409,11 +512,29 @@ export function parseDescriptionToADF(description: string): any {
       content.push({
         type: 'heading',
         attrs: { level },
-        content: [{
-          type: 'text',
-          text: headerText
-        }]
+        content: parseInlineFormatting(headerText, wikiMode)
       });
+      continue;
+    }
+
+    // In wiki mode, # at line start = ordered list (not heading)
+    if (wikiMode && /^#+\s/.test(line)) {
+      const listText = line.replace(/^#+\s*/, '');
+      const lastItem = content[content.length - 1];
+      if (lastItem && lastItem.type === 'orderedList') {
+        lastItem.content.push({
+          type: 'listItem',
+          content: [{ type: 'paragraph', content: parseInlineFormatting(listText, wikiMode) }]
+        });
+      } else {
+        content.push({
+          type: 'orderedList',
+          content: [{
+            type: 'listItem',
+            content: [{ type: 'paragraph', content: parseInlineFormatting(listText, wikiMode) }]
+          }]
+        });
+      }
       continue;
     }
 
@@ -422,28 +543,19 @@ export function parseDescriptionToADF(description: string): any {
       content.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{
-          type: 'text',
-          text: line.substring(3).trim()
-        }]
+        content: parseInlineFormatting(line.substring(3).trim(), wikiMode)
       });
     } else if (line.startsWith('##')) {
       content.push({
         type: 'heading',
         attrs: { level: 2 },
-        content: [{
-          type: 'text',
-          text: line.substring(2).trim()
-        }]
+        content: parseInlineFormatting(line.substring(2).trim(), wikiMode)
       });
     } else if (line.startsWith('#')) {
       content.push({
         type: 'heading',
         attrs: { level: 1 },
-        content: [{
-          type: 'text',
-          text: line.substring(1).trim()
-        }]
+        content: parseInlineFormatting(line.substring(1).trim(), wikiMode)
       });
     }
     // Handle horizontal rules (---- or ----)
@@ -467,7 +579,7 @@ export function parseDescriptionToADF(description: string): any {
           if (panelLine) {
             panelContent.push({
               type: 'paragraph',
-              content: parseInlineFormatting(panelLine)
+              content: parseInlineFormatting(panelLine, wikiMode)
             });
           }
           i++;
@@ -502,7 +614,7 @@ export function parseDescriptionToADF(description: string): any {
           type: 'listItem',
           content: [{
             type: 'paragraph',
-            content: parseInlineFormatting(bulletText)
+            content: parseInlineFormatting(bulletText, wikiMode)
           }]
         });
       } else {
@@ -512,7 +624,7 @@ export function parseDescriptionToADF(description: string): any {
             type: 'listItem',
             content: [{
               type: 'paragraph',
-              content: parseInlineFormatting(bulletText)
+              content: parseInlineFormatting(bulletText, wikiMode)
             }]
           }]
         });
@@ -530,7 +642,7 @@ export function parseDescriptionToADF(description: string): any {
             type: 'listItem',
             content: [{
               type: 'paragraph',
-              content: parseInlineFormatting(listText)
+              content: parseInlineFormatting(listText, wikiMode)
             }]
           });
         } else {
@@ -540,7 +652,7 @@ export function parseDescriptionToADF(description: string): any {
               type: 'listItem',
               content: [{
                 type: 'paragraph',
-                content: parseInlineFormatting(listText)
+                content: parseInlineFormatting(listText, wikiMode)
               }]
             }]
           });
@@ -569,6 +681,50 @@ export function parseDescriptionToADF(description: string): any {
       };
 
       content.push(codeBlock);
+    }
+    // Handle wiki tables (||header|| for headers, |cell| for data rows)
+    else if (wikiMode && line.startsWith('||')) {
+      const tableRows: any[] = [];
+      let tableIdx = i;
+
+      while (tableIdx < lines.length) {
+        const tableLine = lines[tableIdx].trim();
+        if (!tableLine || (!tableLine.startsWith('||') && !tableLine.startsWith('|'))) break;
+
+        if (tableLine.startsWith('||')) {
+          // Header row - split on || and filter empties
+          const cells = tableLine.split('||').filter(c => c !== '');
+          const headerCells = cells.map(cellText => ({
+            type: 'tableHeader',
+            attrs: {},
+            content: [{ type: 'paragraph', content: parseInlineFormatting(cellText.trim(), wikiMode) }]
+          }));
+          tableRows.push({ type: 'tableRow', content: headerCells });
+        } else if (tableLine.startsWith('|')) {
+          // Data row - split on | and filter empties
+          const cells = tableLine.split('|').filter(c => c !== '');
+          // Skip separator rows like |-|-|
+          if (!tableLine.match(/^\|[\s\-:|]+\|?$/)) {
+            const dataCells = cells.map(cellText => ({
+              type: 'tableCell',
+              attrs: {},
+              content: [{ type: 'paragraph', content: parseInlineFormatting(cellText.trim(), wikiMode) }]
+            }));
+            tableRows.push({ type: 'tableRow', content: dataCells });
+          }
+        }
+        tableIdx++;
+      }
+
+      if (tableRows.length > 0) {
+        content.push({
+          type: 'table',
+          attrs: { isNumberColumnEnabled: false, layout: 'default' },
+          content: tableRows
+        });
+        i = tableIdx - 1; // -1 because the for loop will increment
+        continue;
+      }
     }
     // Handle markdown tables - convert to proper ADF table structure
     else if (line.includes('|') && line.trim() !== '|') {
@@ -624,7 +780,7 @@ export function parseDescriptionToADF(description: string): any {
               attrs: {},
               content: [{
                 type: 'paragraph',
-                content: parseInlineFormatting(cellText)
+                content: parseInlineFormatting(cellText, wikiMode)
               }]
             }));
 
@@ -641,7 +797,7 @@ export function parseDescriptionToADF(description: string): any {
               attrs: {},
               content: [{
                 type: 'paragraph',
-                content: parseInlineFormatting(cellText)
+                content: parseInlineFormatting(cellText, wikiMode)
               }]
             }));
 
@@ -670,14 +826,14 @@ export function parseDescriptionToADF(description: string): any {
       // If we reach here, it's not a valid table, treat as regular paragraph
       content.push({
         type: 'paragraph',
-        content: parseInlineFormatting(line)
+        content: parseInlineFormatting(line, wikiMode)
       });
     }
     // Regular paragraph
     else {
       content.push({
         type: 'paragraph',
-        content: parseInlineFormatting(line)
+        content: parseInlineFormatting(line, wikiMode)
       });
     }
   }
