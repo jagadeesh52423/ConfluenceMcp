@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
-import { ConfluenceConfig, JiraConfig, AtlassianConfig, BitbucketConfig } from './types.js';
+import * as os from 'os';
+import * as path from 'path';
+import { ConfluenceConfig, JiraConfig, AtlassianConfig, BitbucketConfig, SnapshotConfig } from './types.js';
 
 dotenv.config();
 
@@ -30,6 +32,12 @@ export const bitbucketConfig: BitbucketConfig = {
   workspace: process.env.BITBUCKET_WORKSPACE || '',
   username: process.env.BITBUCKET_USERNAME || '',
   apiToken: process.env.BITBUCKET_API_TOKEN || '',
+};
+
+export const snapshotConfig: SnapshotConfig = {
+  enabled: process.env.MCP_SNAPSHOTS_ENABLED !== 'false',
+  dir: process.env.MCP_SNAPSHOT_DIR || path.join(os.homedir(), '.atlassian-mcp-snapshots'),
+  retentionDays: parseInt(process.env.MCP_SNAPSHOT_RETENTION_DAYS || '30', 10),
 };
 
 export function validateConfig(): void {

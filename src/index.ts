@@ -7,10 +7,11 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { validateConfig } from './config.js';
+import { validateConfig, snapshotConfig } from './config.js';
 import { ConfluenceService } from './services/confluence.js';
 import { JiraService } from './services/jira.js';
 import { BitbucketService } from './services/bitbucket.js';
+import { SnapshotManager, applyConfluenceSnapshots, applyJiraSnapshots, applyBitbucketSnapshots } from './snapshot/index.js';
 
 import { allTools } from './tools/index.js';
 
@@ -32,10 +33,17 @@ const server = new Server(
   }
 );
 
-// Initialize services
-const confluenceService = new ConfluenceService();
-const jiraService = new JiraService();
-const bitbucketService = new BitbucketService();
+// Initialize snapshot manager
+const snapshotManager = new SnapshotManager(snapshotConfig);
+
+// Initialize services (with snapshot safety net)
+const rawConfluenceService = new ConfluenceService();
+const rawJiraService = new JiraService();
+const rawBitbucketService = new BitbucketService();
+
+const confluenceService = applyConfluenceSnapshots(rawConfluenceService, snapshotManager);
+const jiraService = applyJiraSnapshots(rawJiraService, snapshotManager);
+const bitbucketService = applyBitbucketSnapshots(rawBitbucketService, snapshotManager);
 
 // Initialize handlers
 const c = new ConfluenceHandlers(confluenceService);

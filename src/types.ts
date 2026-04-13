@@ -149,6 +149,12 @@ export interface JiraTransitionResponse {
   transitionId?: string;
 }
 
+export interface SnapshotConfig {
+  enabled: boolean;
+  dir: string;
+  retentionDays: number;
+}
+
 export interface FieldSuggestionRule {
   pattern: RegExp;
   defaultValue: string;
