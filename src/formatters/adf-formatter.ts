@@ -25,6 +25,76 @@ function normalizeCodeLanguage(lang: string): string {
   return LANGUAGE_ALIASES[lower] ?? lower;
 }
 
+const TABLE_TOTAL_WIDTH_PX = 760;
+const TABLE_MIN_COL_WIDTH_PX = 60;
+const TABLE_MAX_COL_WIDTH_PX = 400;
+
+function extractCellText(cell: any): string {
+  const para = cell?.content?.[0];
+  if (!para?.content) return '';
+  return para.content.map((n: any) => n.text ?? '').join('');
+}
+
+/**
+ * Sets attrs.colwidth on every cell so Confluence renders columns proportional
+ * to their max content length, clamped to [TABLE_MIN_COL_WIDTH_PX, TABLE_MAX_COL_WIDTH_PX].
+ */
+function applyColWidths(tableRows: any[]): void {
+  if (!tableRows.length) return;
+  const numCols = Math.max(...tableRows.map(r => r.content?.length ?? 0));
+  if (numCols === 0) return;
+
+  const maxLens = new Array(numCols).fill(1);
+  for (const row of tableRows) {
+    row.content?.forEach((cell: any, idx: number) => {
+      const len = extractCellText(cell).length || 1;
+      if (len > maxLens[idx]) maxLens[idx] = len;
+    });
+  }
+
+  const totalLen = maxLens.reduce((a: number, b: number) => a + b, 0) || 1;
+  const widths = maxLens.map((len: number) => {
+    const proportional = (len / totalLen) * TABLE_TOTAL_WIDTH_PX;
+    return Math.round(Math.min(TABLE_MAX_COL_WIDTH_PX, Math.max(TABLE_MIN_COL_WIDTH_PX, proportional)));
+  });
+
+  for (const row of tableRows) {
+    row.content?.forEach((cell: any, idx: number) => {
+      cell.attrs = { ...(cell.attrs ?? {}), colwidth: [widths[idx]] };
+    });
+  }
+}
+
+const STORAGE_TABLE_MIN_PCT = 5;
+
+/**
+ * Builds a Confluence storage-format <colgroup> sized proportionally to the
+ * max content length per column. Returns '' for empty/single-column input.
+ */
+function buildColGroupHtml(tableRows: string[][]): string {
+  if (!tableRows.length) return '';
+  const numCols = Math.max(...tableRows.map(r => r.length));
+  if (numCols < 2) return '';
+
+  const maxLens = new Array(numCols).fill(1);
+  for (const row of tableRows) {
+    row.forEach((cell, idx) => {
+      const len = (cell ?? '').length || 1;
+      if (len > maxLens[idx]) maxLens[idx] = len;
+    });
+  }
+
+  const totalLen = maxLens.reduce((a: number, b: number) => a + b, 0) || 1;
+  const raw = maxLens.map((len: number) => Math.max(STORAGE_TABLE_MIN_PCT, (len / totalLen) * 100));
+  const sum = raw.reduce((a: number, b: number) => a + b, 0);
+  const normalized = raw.map((p: number) => (p / sum) * 100);
+
+  const cols = normalized
+    .map((p: number) => `<col style="width: ${p.toFixed(1)}%;" />`)
+    .join('');
+  return `<colgroup>${cols}</colgroup>`;
+}
+
 /**
  * Recursively converts a single ADF node to plain text.
  * Mirrors sooperset's adf_to_text recursive approach:
@@ -717,6 +787,7 @@ export function parseDescriptionToADF(description: string): any {
       }
 
       if (tableRows.length > 0) {
+        applyColWidths(tableRows);
         content.push({
           type: 'table',
           attrs: { isNumberColumnEnabled: false, layout: 'default' },
@@ -807,6 +878,7 @@ export function parseDescriptionToADF(description: string): any {
             });
           }
 
+          applyColWidths(tableRows);
           // Create the complete table structure
           content.push({
             type: 'table',
@@ -1131,7 +1203,7 @@ export function markdownToConfluenceStorage(markdown: string): string {
         i++;
       }
       if (tableRows.length > 0) {
-        let html = '<table><tbody>';
+        let html = '<table data-layout="default" data-table-width="760">' + buildColGroupHtml(tableRows) + '<tbody>';
         html += '<tr>' + tableRows[0].map(c => `<th>${applyInlineStorageFormat(c)}</th>`).join('') + '</tr>';
         for (let r = 1; r < tableRows.length; r++) {
           html += '<tr>' + tableRows[r].map(c => `<td>${applyInlineStorageFormat(c)}</td>`).join('') + '</tr>';

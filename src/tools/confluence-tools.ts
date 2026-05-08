@@ -51,7 +51,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_create_page',
-    description: 'Create a new Confluence page',
+    description: 'Create a new Confluence page. For tables, use plain markdown pipe syntax — the server auto-sizes columns proportional to content length and emits the data-layout/data-table-width attributes Confluence Cloud needs to honor per-column widths. Do NOT hand-write <table> / <colgroup> HTML or you lose auto-sizing.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -116,7 +116,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_update_page',
-    description: 'Update an existing Confluence page',
+    description: 'Update an existing Confluence page. For tables, use plain markdown pipe syntax — the server auto-sizes columns proportional to content length and emits the data-layout/data-table-width attributes Confluence Cloud needs to honor per-column widths. Do NOT hand-write <table> / <colgroup> HTML or you lose auto-sizing.',
     inputSchema: {
       type: 'object',
       properties: {
