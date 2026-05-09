@@ -143,6 +143,36 @@ export const bitbucketTools: ToolDefinition[] = [
     },
   },
   {
+    name: 'bitbucket_update_pull_request',
+    description: 'Update an existing pull request (title, description, or destination branch). At least one of title, description, or destinationBranch must be provided.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        title: {
+          type: 'string',
+          description: 'New pull request title',
+        },
+        description: {
+          type: 'string',
+          description: 'New pull request description',
+        },
+        destinationBranch: {
+          type: 'string',
+          description: 'New destination branch name',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
     name: 'bitbucket_get_branches',
     description: 'Get branches for a repository',
     inputSchema: {

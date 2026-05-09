@@ -169,6 +169,26 @@ export class BitbucketService {
     return response.data;
   }
 
+  async updatePullRequest(
+    repoName: string,
+    prId: number,
+    updates: { title?: string; description?: string; destinationBranch?: string }
+  ): Promise<any> {
+    const data: any = {};
+    if (updates.title !== undefined) {
+      data.title = updates.title;
+    }
+    if (updates.description !== undefined) {
+      data.description = updates.description;
+    }
+    if (updates.destinationBranch !== undefined) {
+      data.destination = { branch: { name: updates.destinationBranch } };
+    }
+
+    const response = await this.client.put(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}`, data);
+    return response.data;
+  }
+
   async getCommits(repoName: string, branch: string = 'main', limit: number = 10): Promise<any[]> {
     const params = {
       pagelen: limit,

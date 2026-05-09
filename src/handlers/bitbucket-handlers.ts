@@ -94,6 +94,34 @@ export class BitbucketHandlers extends BaseHandler {
     );
   }
 
+  async updatePullRequest(args: {
+    repoName: string;
+    prId: number;
+    title?: string;
+    description?: string;
+    destinationBranch?: string;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, title, description, destinationBranch } = args;
+    const updateParams: Record<string, any> = {};
+    if (title !== undefined) updateParams.Title = title;
+    if (description !== undefined) updateParams.Description = description;
+    if (destinationBranch !== undefined) updateParams['Destination Branch'] = destinationBranch;
+    return this.handle(
+      () => {
+        if (title === undefined && description === undefined && destinationBranch === undefined) {
+          throw new Error('At least one of title, description, or destinationBranch must be provided');
+        }
+        return this.service.updatePullRequest(repoName, prId, { title, description, destinationBranch });
+      },
+      {
+        operation: 'Failed to update pull request',
+        params: { Repository: repoName, 'PR ID': prId, ...updateParams },
+        tip: ERROR_TIPS.BITBUCKET_REPO_VIEW,
+      },
+      jsonResponse
+    );
+  }
+
   async getBranches(args: { repoName: string; limit?: number }): Promise<ToolResponse> {
     const { repoName, limit } = args;
     return this.handle(
