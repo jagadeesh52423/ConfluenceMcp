@@ -147,6 +147,7 @@ registry.registerAll({
   'bitbucket_get_pull_requests':     (a) => b.getPullRequests(a),
   'bitbucket_get_pull_request':      (a) => b.getPullRequest(a),
   'bitbucket_create_pull_request':   (a) => b.createPullRequest(a),
+  'bitbucket_update_pull_request':   (a) => b.updatePullRequest(a),
   'bitbucket_get_branches':          (a) => b.getBranches(a),
   'bitbucket_get_commits':           (a) => b.getCommits(a),
   'bitbucket_get_issues':            (a) => b.getIssues(a),
