@@ -1,6 +1,6 @@
 import { ConfluenceClient } from '../clients/confluence-client.js';
 import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, SearchOptions } from '../types.js';
-import { markdownToConfluenceStorage } from '../formatters/index.js';
+import { markdownToADF } from '../formatters/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -88,9 +88,9 @@ export class ConfluenceService {
       title,
       space: { key: spaceKey },
       body: {
-        storage: {
-          value: markdownToConfluenceStorage(content),
-          representation: 'storage'
+        atlas_doc_format: {
+          value: JSON.stringify(markdownToADF(content)),
+          representation: 'atlas_doc_format'
         }
       }
     };
@@ -118,9 +118,9 @@ export class ConfluenceService {
       title,
       type: 'page',
       body: {
-        storage: {
-          value: markdownToConfluenceStorage(content),
-          representation: 'storage'
+        atlas_doc_format: {
+          value: JSON.stringify(markdownToADF(content)),
+          representation: 'atlas_doc_format'
         }
       }
     };
@@ -449,9 +449,9 @@ export class ConfluenceService {
         type: 'page'
       },
       body: {
-        storage: {
-          value: markdownToConfluenceStorage(body),
-          representation: 'storage'
+        atlas_doc_format: {
+          value: JSON.stringify(markdownToADF(body)),
+          representation: 'atlas_doc_format'
         }
       }
     };
@@ -474,9 +474,9 @@ export class ConfluenceService {
       type: 'comment',
       version: { number: version + 1 },
       body: {
-        storage: {
-          value: markdownToConfluenceStorage(body),
-          representation: 'storage'
+        atlas_doc_format: {
+          value: JSON.stringify(markdownToADF(body)),
+          representation: 'atlas_doc_format'
         }
       }
     };
