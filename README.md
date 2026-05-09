@@ -5,6 +5,17 @@
 
 A comprehensive Model Context Protocol (MCP) server that provides AI assistants with access to Atlassian APIs including Jira, Confluence, and Bitbucket. **84 tools** across 3 services — the most complete Atlassian MCP server available.
 
+## Confluence content format (v1.2.0+)
+
+Confluence input/output uses **ADF (Atlassian Document Format)**, not storage HTML or wiki markup:
+
+- **Input** — `confluence_create_page`, `confluence_update_page`, `confluence_add_comment`, `confluence_update_comment` accept **Markdown**. The server converts it to ADF using the official `@atlaskit/editor-markdown-transformer` and submits via the Confluence v2 API.
+- **Output** — `confluence_get_page`, `confluence_get_pages_by_space`, `confluence_get_comments` return the body as a parsed **ADF JSON** document (an object, not a string). `ConfluencePage.content` and `ConfluenceComment.body` are typed `any` to reflect the JSON shape.
+- **CQL search** — `confluence_search_pages` still uses the **v1** REST endpoint (`/wiki/rest/api/search`) because v2 has no CQL equivalent. The `content` field on search hits is opaque legacy storage HTML; fetch the page by id with `confluence_get_page` for the ADF body.
+- **Image embedding** — inline image embedding (`confluence_embed_image`, and `confluence_create_page` with `images: [...]`) is **not supported in v1.2.0** because ADF media nodes require Atlassian Media API tokens. Calling either path returns an explicit error. Use `confluence_add_attachment` to upload files and reference them from the Confluence UI.
+
+This is a breaking change from v1.1.x, which returned Confluence storage-format HTML strings. See "Phase 4 cleanup" in `docs/superpowers/specs/2026-05-08-adf-formatter-replacement-design.md`.
+
 ## Feature Comparison
 
 How we stack up against the official Atlassian MCP server and the popular sooperset/mcp-atlassian:
@@ -20,10 +31,12 @@ How we stack up against the official Atlassian MCP server and the popular sooper
 | Get/Add comments | YES | YES | YES |
 | **Update/Delete comment** | **YES** | NO | NO |
 | Get/Add/Delete attachments | YES | NO | YES |
-| **Embed image (with positioning)** | **YES** | NO | NO |
-| **Create page with inline images** | **YES** | NO | NO |
+| Embed image (with positioning) | NO¹ | NO | NO |
+| Create page with inline images | NO¹ | NO | NO |
 | Get/Add/Remove labels | YES | NO | Partial |
 | **Page version history** | YES | NO | YES |
+
+¹ Removed in v1.2.0 alongside the Confluence v2 / ADF migration. ADF media nodes need the Atlassian Media API; reinstating inline embedding is tracked as future work. Use `confluence_add_attachment` to upload files.
 
 ### Jira
 
@@ -62,8 +75,8 @@ How we stack up against the official Atlassian MCP server and the popular sooper
 - **Only MCP server covering all 3 Atlassian products** — Confluence + Jira + Bitbucket
 - **Deepest CRUD coverage** — update/delete on comments, worklogs, labels where competitors only do create/read
 - **Smart Field Handling** — AI-driven field suggestions during Jira transitions, unique to this server
-- **Image embedding** — Confluence image embedding with positioning control, unique to this server
 - **84 total tools** vs ~45 (Official) and ~58 (sooperset)
+- **ADF / Confluence v2 native** — pages and comments are stored and returned as ADF, the format Confluence Cloud uses internally; markdown input is converted via the official `@atlaskit/editor-markdown-transformer`
 
 ## Features
 
@@ -74,10 +87,9 @@ How we stack up against the official Atlassian MCP server and the popular sooper
 - **Child Pages**: Get child pages of a parent page
 - **Page History**: View version history of a page
 - **Attachments**: Add, list, and delete attachments
-- **Comments**: Full CRUD operations on page comments
+- **Comments**: Full CRUD operations on page footer comments
 - **Labels**: Get, add, and remove labels on pages
-- **Images**: Embed images in page content with positioning control
-- Full support for Confluence storage format
+- **ADF / v2 API**: input is markdown (converted to ADF via official @atlaskit transformers); output is ADF JSON. CQL search stays on v1.
 
 ### Jira Integration (48 tools)
 - Search issues by text, filters, or JQL query
@@ -291,10 +303,10 @@ Add the following to your Claude Desktop configuration file:
 
 | Tool | Description |
 |------|-------------|
-| `confluence_search_pages` | Search pages by text query |
-| `confluence_get_page` | Get specific page by ID |
-| `confluence_create_page` | Create new page with content and optional inline images |
-| `confluence_update_page` | Update existing page |
+| `confluence_search_pages` | Search pages by CQL text query (legacy v1; result `content` is opaque storage HTML) |
+| `confluence_get_page` | Get specific page by ID — returns ADF JSON `content` |
+| `confluence_create_page` | Create new page (markdown → ADF). Inline image embedding not supported in v1.2.0. |
+| `confluence_update_page` | Update existing page (markdown → ADF) |
 | `confluence_delete_page` | Delete a page |
 | `confluence_get_spaces` | List all spaces |
 | `confluence_get_pages_by_space` | Get pages from specific space |
@@ -303,10 +315,10 @@ Add the following to your Claude Desktop configuration file:
 | `confluence_get_attachments` | List attachments on a page |
 | `confluence_add_attachment` | Add attachment to a page |
 | `confluence_delete_attachment` | Delete attachment from a page |
-| `confluence_embed_image` | Embed image in page content with positioning |
-| `confluence_get_comments` | Get comments on a page |
-| `confluence_add_comment` | Add comment to a page |
-| `confluence_update_comment` | Update existing comment |
+| `confluence_embed_image` | NOT SUPPORTED in v1.2.0 — returns an error. Use `confluence_add_attachment`. |
+| `confluence_get_comments` | Get footer comments on a page — returns ADF JSON `body` |
+| `confluence_add_comment` | Add footer comment (markdown → ADF) |
+| `confluence_update_comment` | Update existing footer comment (markdown → ADF) |
 | `confluence_delete_comment` | Delete comment from a page |
 | `confluence_get_labels` | Get labels on a page |
 | `confluence_add_labels` | Add labels to a page |
