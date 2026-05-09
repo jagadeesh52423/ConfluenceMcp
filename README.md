@@ -125,7 +125,7 @@ Advanced transition management with intelligent field suggestions:
 - List and search repositories
 - Get repository details and create new repositories
 - Manage branches and commits
-- **Pull Requests**: Create, list, and get PR details with diffs
+- **Pull Requests**: Create, update, list, and get PR details with diffs
 - **PR Comments**: Full CRUD with resolve/unresolve support
 - Issue tracking within repositories
 
@@ -401,6 +401,7 @@ Add the following to your Claude Desktop configuration file:
 | `bitbucket_get_pull_requests` | List pull requests |
 | `bitbucket_get_pull_request` | Get specific PR with diff |
 | `bitbucket_create_pull_request` | Create new pull request |
+| `bitbucket_update_pull_request` | Update title, description, or destination branch of a PR |
 | `bitbucket_get_branches` | List branches |
 | `bitbucket_get_commits` | List commits |
 | `bitbucket_get_issues` | List repository issues |
