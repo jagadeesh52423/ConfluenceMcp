@@ -42,12 +42,6 @@ export const API_ENDPOINTS = {
   BITBUCKET_BASE_URL: 'https://api.bitbucket.org/2.0',
 } as const;
 
-// Confluence expand options
-export const CONFLUENCE_EXPAND = {
-  PAGE_DEFAULT: ['body.storage', 'version', 'space'],
-  COMMENT_DEFAULT: ['body.storage', 'version', 'history'],
-} as const;
-
 // Jira field defaults
 export const JIRA_FIELDS = {
   SEARCH_FIELDS: 'summary,description,status,assignee,created,updated',
