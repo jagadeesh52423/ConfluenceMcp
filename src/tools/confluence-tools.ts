@@ -19,7 +19,7 @@ export interface ToolDefinition {
 export const confluenceTools: ToolDefinition[] = [
   {
     name: 'confluence_search_pages',
-    description: 'Search Confluence pages by text query',
+    description: 'Search Confluence pages by text query (CQL). Returns matching pages; the `content` field on each result is opaque (legacy v1 storage HTML) and should not be relied on — fetch the page by id with confluence_get_page for the ADF body.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,7 +37,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_page',
-    description: 'Get a specific Confluence page by ID',
+    description: 'Get a specific Confluence page by ID. The `content` field is returned as an ADF JSON document (Atlassian Document Format).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -51,7 +51,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_create_page',
-    description: 'Create a new Confluence page. For tables, use plain markdown pipe syntax — the server auto-sizes columns proportional to content length and emits the data-layout/data-table-width attributes Confluence Cloud needs to honor per-column widths. Do NOT hand-write <table> / <colgroup> HTML or you lose auto-sizing.',
+    description: 'Create a new Confluence page. The `content` field accepts Markdown — the server converts it to ADF (Atlassian Document Format) using the official @atlaskit transformer and submits it via the v2 API. The returned `content` is the ADF JSON document. Do not pass storage-format HTML or hand-written ADF JSON.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -65,7 +65,7 @@ export const confluenceTools: ToolDefinition[] = [
         },
         content: {
           type: 'string',
-          description: 'Page content in Confluence storage format',
+          description: 'Page content as Markdown. Converted to ADF before submission.',
         },
         parentId: {
           type: 'string',
@@ -116,7 +116,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_update_page',
-    description: 'Update an existing Confluence page. For tables, use plain markdown pipe syntax — the server auto-sizes columns proportional to content length and emits the data-layout/data-table-width attributes Confluence Cloud needs to honor per-column widths. Do NOT hand-write <table> / <colgroup> HTML or you lose auto-sizing.',
+    description: 'Update an existing Confluence page. The `content` field accepts Markdown — the server converts it to ADF and submits it via the v2 API. The returned `content` is the ADF JSON document.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -130,7 +130,7 @@ export const confluenceTools: ToolDefinition[] = [
         },
         content: {
           type: 'string',
-          description: 'New page content in Confluence storage format',
+          description: 'New page content as Markdown. Converted to ADF before submission.',
         },
         version: {
           type: 'number',
@@ -156,7 +156,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_pages_by_space',
-    description: 'Get pages from a specific Confluence space',
+    description: 'Get pages from a specific Confluence space. The `content` field on each page is an ADF JSON document. spaceKey is resolved to spaceId internally.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -229,7 +229,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_embed_image',
-    description: 'Attach an image to a Confluence page and embed it in the content. Provide either filePath (local file) or fileContent (base64).',
+    description: 'NOT SUPPORTED in this version. Inline image embedding requires the Atlassian Media API (ADF media nodes) and is not implemented. Use confluence_add_attachment to upload the file and reference it from the Confluence UI. Calling this tool will return an error.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -281,7 +281,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_comments',
-    description: 'Get all comments for a Confluence page',
+    description: 'Get all footer comments for a Confluence page. The `body` field on each comment is an ADF JSON document.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -305,7 +305,7 @@ export const confluenceTools: ToolDefinition[] = [
         },
         body: {
           type: 'string',
-          description: 'Comment content in Confluence storage format (HTML)',
+          description: 'Comment content as Markdown. Converted to ADF before submission.',
         },
       },
       required: ['pageId', 'body'],
@@ -323,7 +323,7 @@ export const confluenceTools: ToolDefinition[] = [
         },
         body: {
           type: 'string',
-          description: 'New comment content in Confluence storage format (HTML)',
+          description: 'New comment content as Markdown. Converted to ADF before submission.',
         },
         version: {
           type: 'number',
@@ -349,7 +349,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_page_children',
-    description: 'Get child pages of a Confluence page',
+    description: 'Get child pages of a Confluence page. v2 returns child summaries only — `content`, `version`, `created`, `updated`, and `spaceKey` are not populated; fetch each child by id with confluence_get_page for full details.',
     inputSchema: {
       type: 'object',
       properties: {
