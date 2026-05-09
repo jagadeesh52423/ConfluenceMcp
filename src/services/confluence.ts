@@ -4,196 +4,311 @@ import { markdownToADF } from '../formatters/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Confluence service.
+ *
+ * Endpoint policy (Phase 3):
+ *   - Pages, spaces, page children, versions, footer-comments, attachment
+ *     reads/deletes use the v2 API (`/wiki/api/v2/...`) with bodies in ADF
+ *     (`representation: "atlas_doc_format"`, value = JSON-stringified ADF).
+ *   - CQL search stays on v1 (`/wiki/rest/api/search`) — v2 has no equivalent.
+ *   - Attachment upload stays on v1 (`/wiki/rest/api/content/{id}/child/attachment`)
+ *     — v2 has no upload endpoint; only read/delete.
+ *   - Label *writes* stay on v1 (`/wiki/rest/api/content/{id}/label[/...]`) — v2
+ *     exposes only label *reads* on pages. Reads use v2.
+ *
+ * Body format:
+ *   - Submit: body.atlas_doc_format.value = JSON.stringify(adf), representation
+ *     = "atlas_doc_format".
+ *   - Read: append `?body-format=atlas_doc_format` to GETs that need a body and
+ *     parse `body.atlas_doc_format.value` (a JSON string) back into an object.
+ */
 export class ConfluenceService {
+  private static readonly V2 = '/wiki/api/v2';
+  private static readonly V1 = '/wiki/rest/api';
+  private static readonly REPRESENTATION = 'atlas_doc_format';
+  private static readonly BODY_FORMAT_QS = 'body-format=atlas_doc_format';
+
   private client: ConfluenceClient;
+  // Cache of spaceKey → spaceId for the duration of a single service instance.
+  // v2 page write endpoints take spaceId, but the public MCP tools still
+  // accept spaceKey for backwards compatibility.
+  private readonly spaceIdByKey = new Map<string, string>();
 
   constructor() {
     this.client = new ConfluenceClient();
   }
+
+  // ---------- Internal helpers ----------
 
   /**
    * Get file buffer from either base64 content or file path
    */
   private async getFileBuffer(fileContent?: string, filePath?: string): Promise<Buffer> {
     if (filePath) {
-      // Read from file path
       if (!fs.existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
       return fs.readFileSync(filePath);
     } else if (fileContent) {
-      // Decode from base64
       return Buffer.from(fileContent, 'base64');
     } else {
       throw new Error('Either fileContent (base64) or filePath must be provided');
     }
   }
 
-  /**
-   * Extract filename from file path
-   */
   private getFilenameFromPath(filePath: string): string {
     return path.basename(filePath);
   }
 
+  /**
+   * Resolve a Confluence space key (e.g. "ENG") to its v2 numeric space id.
+   * v2 endpoints accept space `id`, not `key`. Cached per service instance.
+   */
+  private async resolveSpaceId(spaceKey: string): Promise<string> {
+    const cached = this.spaceIdByKey.get(spaceKey);
+    if (cached) return cached;
+
+    const response = await this.client.get<any>(`${ConfluenceService.V2}/spaces`, { keys: spaceKey });
+    const space = response?.results?.[0];
+    if (!space?.id) {
+      throw new Error(`Confluence space not found for key "${spaceKey}"`);
+    }
+    const id = String(space.id);
+    this.spaceIdByKey.set(spaceKey, id);
+    return id;
+  }
+
+  /**
+   * Parse the ADF JSON string from a v2 page/comment body envelope.
+   * Returns the parsed ADF object, or null if no body was returned.
+   */
+  private parseAdfBody(body: any): any {
+    const value = body?.atlas_doc_format?.value;
+    if (!value || typeof value !== 'string') return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      // Should not happen — Confluence always returns valid JSON here — but
+      // surfacing the raw string is more useful than throwing.
+      return value;
+    }
+  }
+
+  /**
+   * Build a write body envelope with ADF representation.
+   */
+  private adfBodyEnvelope(markdown: string): { representation: string; value: string } {
+    return {
+      representation: ConfluenceService.REPRESENTATION,
+      value: JSON.stringify(markdownToADF(markdown)),
+    };
+  }
+
+  /**
+   * Map a v2 page response to our public ConfluencePage shape.
+   * v2 returns `spaceId` (not `space.key`) and timestamps under different
+   * paths than v1 — the caller may pass a known `spaceKey` to fill that
+   * field; otherwise it's left empty.
+   */
+  private mapV2Page(page: any, spaceKey: string = ''): ConfluencePage {
+    return {
+      id: String(page?.id ?? ''),
+      title: page?.title ?? '',
+      content: this.parseAdfBody(page?.body),
+      spaceKey,
+      version: page?.version?.number ?? 1,
+      created: page?.createdAt ?? page?.version?.createdAt ?? '',
+      updated: page?.version?.createdAt ?? '',
+    };
+  }
+
+  // ---------- Pages ----------
+
   async searchPages(options: SearchOptions = {}): Promise<ConfluencePage[]> {
+    // CQL search stays on v1 — v2 has no equivalent. Body returned by v1 is
+    // storage-format HTML (a string); ConfluencePage.content is `any` so this
+    // is allowed but consumers should treat search results as opaque.
     const { query, limit = 25, startAt = 0, expand = ['body.storage', 'version', 'space'] } = options;
 
-    let cql = '';
-    if (query) {
-      cql = `text ~ "${query}"`;
-    }
-
+    const cql = query ? `text ~ "${query}"` : '';
     const params: any = {
       cql,
       limit,
       start: startAt,
-      expand: expand.join(',')
+      expand: expand.join(','),
     };
 
-    const response = await this.client.get<any>('/wiki/rest/api/content/search', params);
+    const response = await this.client.get<any>(`${ConfluenceService.V1}/search`, params);
 
-    return response.results.map((page: any) => ({
+    return (response.results ?? []).map((page: any) => ({
       id: page.id,
       title: page.title,
-      content: page.body?.storage?.value || '',
-      spaceKey: page.space?.key || '',
-      version: page.version?.number || 1,
-      created: page.created || '',
-      updated: page.updated || ''
+      content: page.body?.storage?.value ?? '',
+      spaceKey: page.space?.key ?? '',
+      version: page.version?.number ?? 1,
+      created: page.created ?? '',
+      updated: page.updated ?? '',
     }));
   }
 
-  async getPage(pageId: string, expand: string[] = ['body.storage', 'version', 'space']): Promise<ConfluencePage> {
-    const params = {
-      expand: expand.join(',')
-    };
-
-    const page = await this.client.get<any>(`/wiki/rest/api/content/${pageId}`, params);
-
-    return {
-      id: page.id,
-      title: page.title,
-      content: page.body?.storage?.value || '',
-      spaceKey: page.space?.key || '',
-      version: page.version?.number || 1,
-      created: page.created || '',
-      updated: page.updated || ''
-    };
+  async getPage(pageId: string): Promise<ConfluencePage> {
+    const page = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+    );
+    return this.mapV2Page(page);
   }
 
   async createPage(spaceKey: string, title: string, content: string, parentId?: string): Promise<ConfluencePage> {
+    const spaceId = await this.resolveSpaceId(spaceKey);
+
     const data: any = {
-      type: 'page',
+      spaceId,
+      status: 'current',
       title,
-      space: { key: spaceKey },
-      body: {
-        atlas_doc_format: {
-          value: JSON.stringify(markdownToADF(content)),
-          representation: 'atlas_doc_format'
-        }
-      }
+      body: this.adfBodyEnvelope(content),
     };
+    if (parentId) data.parentId = parentId;
 
-    if (parentId) {
-      data.ancestors = [{ id: parentId }];
-    }
-
-    const page = await this.client.post<any>('/wiki/rest/api/content?expand=body.storage,version,space', data);
-
-    return {
-      id: page.id,
-      title: page.title,
-      content: page.body?.storage?.value || '',
-      spaceKey: page.space?.key || '',
-      version: page.version?.number || 1,
-      created: page.created || '',
-      updated: page.updated || ''
-    };
+    const page = await this.client.post<any>(
+      `${ConfluenceService.V2}/pages?${ConfluenceService.BODY_FORMAT_QS}`,
+      data,
+    );
+    return this.mapV2Page(page, spaceKey);
   }
 
   async updatePage(pageId: string, title: string, content: string, version: number): Promise<ConfluencePage> {
     const data = {
-      version: { number: version + 1 },
+      id: pageId,
+      status: 'current',
       title,
-      type: 'page',
-      body: {
-        atlas_doc_format: {
-          value: JSON.stringify(markdownToADF(content)),
-          representation: 'atlas_doc_format'
-        }
-      }
+      body: this.adfBodyEnvelope(content),
+      version: { number: version + 1, message: '' },
     };
 
-    const page = await this.client.put<any>(`/wiki/rest/api/content/${pageId}`, data);
-
-    return {
-      id: page.id,
-      title: page.title,
-      content: page.body?.storage?.value || '',
-      spaceKey: page.space?.key || '',
-      version: page.version?.number || 1,
-      created: page.created || '',
-      updated: page.updated || ''
-    };
+    const page = await this.client.put<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+      data,
+    );
+    return this.mapV2Page(page);
   }
 
   async deletePage(pageId: string): Promise<void> {
-    await this.client.delete(`/wiki/rest/api/content/${pageId}`);
+    await this.client.delete(`${ConfluenceService.V2}/pages/${pageId}`);
   }
 
-  async getSpaces(limit: number = 25): Promise<any[]> {
-    const params = {
-      limit,
-      expand: 'description.plain'
-    };
+  // ---------- Spaces ----------
 
-    const response = await this.client.get<any>('/wiki/rest/api/space', params);
-    return response.results;
+  async getSpaces(limit: number = 25): Promise<any[]> {
+    const response = await this.client.get<any>(`${ConfluenceService.V2}/spaces`, { limit });
+    return response?.results ?? [];
   }
 
   async getPagesBySpace(spaceKey: string, limit: number = 25): Promise<ConfluencePage[]> {
-    const params = {
-      spaceKey,
-      limit,
-      expand: 'body.storage,version'
-    };
+    const spaceId = await this.resolveSpaceId(spaceKey);
 
-    const response = await this.client.get<any>('/wiki/rest/api/content', params);
+    const response = await this.client.get<any>(
+      `${ConfluenceService.V2}/spaces/${spaceId}/pages`,
+      { limit, 'body-format': ConfluenceService.REPRESENTATION },
+    );
 
-    return response.results.map((page: any) => ({
-      id: page.id,
-      title: page.title,
-      content: page.body?.storage?.value || '',
-      spaceKey: page.space?.key || spaceKey,
-      version: page.version?.number || 1,
-      created: page.created || '',
-      updated: page.updated || ''
+    return (response?.results ?? []).map((page: any) => this.mapV2Page(page, spaceKey));
+  }
+
+  // ---------- Page children ----------
+
+  async getPageChildren(pageId: string, limit: number = 25): Promise<ConfluencePage[]> {
+    // v2 children endpoint does not return body or version — only id, title,
+    // status, spaceId, parentId, position, lastOwnerId, childPosition.
+    const response = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}/children`,
+      { limit },
+    );
+
+    return (response?.results ?? []).map((child: any): ConfluencePage => ({
+      id: String(child?.id ?? ''),
+      title: child?.title ?? '',
+      content: null,
+      spaceKey: '',
+      version: 1,
+      created: '',
+      updated: '',
     }));
   }
 
-  async getAttachments(pageId: string): Promise<ConfluenceAttachment[]> {
-    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/child/attachment`, {
-      expand: 'version'
-    });
+  // ---------- Page version history ----------
 
-    return response.results?.map((att: any) => ({
-      id: att.id,
-      title: att.title,
-      filename: att.title,
-      mediaType: att.metadata?.mediaType || '',
-      fileSize: att.extensions?.fileSize || 0,
-      created: att.history?.created?.when || '',
-      downloadUrl: att._links?.download || ''
-    })) || [];
+  async getPageHistory(pageId: string, limit: number = 25): Promise<any[]> {
+    // v2 versions response: { results: [{ createdAt, message, number,
+    //   minorEdit, authorId }], _links }. v2 does NOT include the author's
+    // displayName — only authorId — so `by` falls back to the id.
+    const response = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}/versions`,
+      { limit },
+    );
+
+    return (response?.results ?? []).map((version: any) => ({
+      number: version.number,
+      by: version.authorId ?? 'Unknown',
+      byAccountId: version.authorId,
+      when: version.createdAt ?? '',
+      message: version.message ?? '',
+      minorEdit: version.minorEdit ?? false,
+    }));
+  }
+
+  // ---------- Labels ----------
+  // v2 supports reading labels on pages but does NOT expose write endpoints.
+  // Adding/removing labels therefore stays on v1.
+
+  async getLabels(pageId: string): Promise<any[]> {
+    const response = await this.client.get<any>(`${ConfluenceService.V2}/pages/${pageId}/labels`);
+    return (response?.results ?? []).map((label: any) => ({
+      prefix: label.prefix,
+      name: label.name,
+      id: label.id,
+    }));
+  }
+
+  async addLabels(pageId: string, labels: string[]): Promise<any[]> {
+    // v1 — v2 has no equivalent write endpoint for page labels.
+    const data = labels.map(name => ({ prefix: 'global', name }));
+    const response = await this.client.post<any>(`${ConfluenceService.V1}/content/${pageId}/label`, data);
+    return (response?.results ?? []).map((label: any) => ({
+      prefix: label.prefix,
+      name: label.name,
+      id: label.id,
+    }));
+  }
+
+  async removeLabel(pageId: string, label: string): Promise<void> {
+    // v1 — v2 has no equivalent.
+    await this.client.delete(`${ConfluenceService.V1}/content/${pageId}/label/${encodeURIComponent(label)}`);
+  }
+
+  // ---------- Attachments ----------
+
+  async getAttachments(pageId: string): Promise<ConfluenceAttachment[]> {
+    const response = await this.client.get<any>(`${ConfluenceService.V2}/pages/${pageId}/attachments`);
+
+    return (response?.results ?? []).map((att: any): ConfluenceAttachment => ({
+      id: String(att?.id ?? ''),
+      title: att?.title ?? '',
+      filename: att?.title ?? '',
+      mediaType: att?.mediaType ?? '',
+      fileSize: att?.fileSize ?? 0,
+      created: att?.createdAt ?? '',
+      downloadUrl: att?.downloadLink ?? '',
+    }));
   }
 
   async addAttachment(
     pageId: string,
     filename?: string,
     fileContent?: string,
-    filePath?: string
+    filePath?: string,
   ): Promise<any> {
+    // v2 has no upload endpoint — multipart upload stays on v1.
     const FormData = (await import('form-data')).default;
     const form = new FormData();
 
@@ -202,74 +317,50 @@ export class ConfluenceService {
 
     form.append('file', buffer, { filename: finalFilename });
 
-    const response = await this.client.postFormData(`/wiki/rest/api/content/${pageId}/child/attachment`, form);
+    const response = await this.client.postFormData(
+      `${ConfluenceService.V1}/content/${pageId}/child/attachment`,
+      form,
+    );
     return response;
   }
 
   async deleteAttachment(attachmentId: string): Promise<void> {
-    await this.client.delete(`/wiki/rest/api/content/${attachmentId}`);
+    await this.client.delete(`${ConfluenceService.V2}/attachments/${attachmentId}`);
   }
 
+  // ---------- Image embedding (NOT supported in ADF mode) ----------
+  //
+  // The pre-Phase-3 implementation built Confluence storage-format XHTML
+  // (`<ac:image><ri:attachment .../></ac:image>`) and string-spliced it into
+  // page bodies. With ADF as the only supported body format, that path would
+  // corrupt page bodies (storage HTML is not valid ADF). Inserting a
+  // first-class ADF `media`/`mediaSingle` node requires a Media API token
+  // (collection + occurrenceKey + media id), which is out of scope for the
+  // formatter swap.
+  //
+  // Behaviour: surface an explicit, actionable error rather than silently
+  // emitting broken markup. The `addAttachment` path still works — callers
+  // can upload the file and reference it in subsequent UI edits.
+
+  private static readonly EMBED_NOT_SUPPORTED_MSG =
+    'Image embedding is not supported in ADF mode. Use confluence_add_attachment to upload the file; ' +
+    'embedding inline requires the Atlassian Media API and is not implemented in this version.';
+
   async embedImage(
-    pageId: string,
-    filename?: string,
-    fileContent?: string,
-    filePath?: string,
-    options: {
+    _pageId: string,
+    _filename?: string,
+    _fileContent?: string,
+    _filePath?: string,
+    _options: {
       alt?: string;
       caption?: string;
       width?: number;
       align?: 'left' | 'center' | 'right';
       position?: 'top' | 'bottom' | 'after-heading';
       headingText?: string;
-    } = {}
+    } = {},
   ): Promise<{ page: ConfluencePage; attachment: any }> {
-    // Determine filename
-    const finalFilename = filename || (filePath ? this.getFilenameFromPath(filePath) : 'image');
-
-    // Step 1: Attach the image
-    const attachment = await this.addAttachment(pageId, finalFilename, fileContent, filePath);
-
-    // Step 2: Get current page content and version
-    const currentPage = await this.getPage(pageId);
-
-    // Step 3: Build image markup
-    const alt = options.alt || finalFilename;
-    const alignAttr = options.align ? ` ac:align="${options.align}" ac:layout="${options.align}"` : '';
-    const widthAttr = options.width ? ` ac:custom-width="true" ac:width="${options.width}"` : '';
-
-    let imageMarkup = `<ac:image${alignAttr}${widthAttr} ac:alt="${alt}"><ri:attachment ri:filename="${finalFilename}" />`;
-
-    if (options.caption) {
-      imageMarkup += `<ac:caption><p>${options.caption}</p></ac:caption>`;
-    }
-    imageMarkup += '</ac:image>';
-
-    // Step 4: Insert image at specified position
-    let updatedContent = currentPage.content;
-    const position = options.position || 'bottom';
-
-    if (position === 'top') {
-      updatedContent = imageMarkup + '\n' + updatedContent;
-    } else if (position === 'after-heading' && options.headingText) {
-      // Find the heading and insert after it
-      const headingRegex = new RegExp(`(<h[1-6][^>]*>.*?${options.headingText}.*?</h[1-6]>)`, 'i');
-      const match = updatedContent.match(headingRegex);
-      if (match) {
-        updatedContent = updatedContent.replace(headingRegex, `$1\n${imageMarkup}`);
-      } else {
-        // Fallback to bottom if heading not found
-        updatedContent = updatedContent + '\n' + imageMarkup;
-      }
-    } else {
-      // Default: bottom
-      updatedContent = updatedContent + '\n' + imageMarkup;
-    }
-
-    // Step 5: Update the page
-    const updatedPage = await this.updatePage(pageId, currentPage.title, updatedContent, currentPage.version);
-
-    return { page: updatedPage, attachment };
+    throw new Error(ConfluenceService.EMBED_NOT_SUPPORTED_MSG);
   }
 
   async createPageWithImages(
@@ -277,224 +368,80 @@ export class ConfluenceService {
     title: string,
     content: string,
     parentId?: string,
-    images?: ConfluenceImage[]
+    images?: ConfluenceImage[],
   ): Promise<ConfluencePage> {
-    // First create the page
-    const page = await this.createPage(spaceKey, title, content, parentId);
-
     if (images && images.length > 0) {
-      // Upload each image and collect their attachment info
-      const uploadedImages: Array<ConfluenceImage & { attachmentId?: string; resolvedFilename: string }> = [];
-
-      for (const image of images) {
-        try {
-          const resolvedFilename = image.filename || (image.filePath ? this.getFilenameFromPath(image.filePath) : 'image');
-          const attachment = await this.addAttachment(page.id, resolvedFilename, image.fileContent, image.filePath);
-          uploadedImages.push({
-            ...image,
-            filename: resolvedFilename,
-            resolvedFilename,
-            attachmentId: attachment.results?.[0]?.id
-          });
-        } catch (error) {
-          console.warn(`Failed to upload image ${image.filename || image.filePath}:`, error);
-        }
-      }
-
-      // If we have uploaded images, update the page content to include image references
-      if (uploadedImages.length > 0) {
-        let updatedContent = content;
-        const imagesWithoutPlaceholder: typeof uploadedImages = [];
-
-        for (const img of uploadedImages) {
-          const imageMarkup = this.buildImageMarkup(img);
-          const fname = img.resolvedFilename || img.filename || 'image';
-
-          // Check for placeholder {{IMAGE:filename}}
-          const placeholder = new RegExp(`\\{\\{IMAGE:${fname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'gi');
-
-          if (placeholder.test(updatedContent)) {
-            // Replace placeholder with image markup
-            updatedContent = updatedContent.replace(placeholder, imageMarkup);
-          } else {
-            // No placeholder found, add to list for appending at end
-            imagesWithoutPlaceholder.push(img);
-          }
-        }
-
-        // Append images without placeholders at the end
-        if (imagesWithoutPlaceholder.length > 0) {
-          const appendedMarkup = imagesWithoutPlaceholder
-            .map(img => this.buildImageMarkup(img))
-            .join('\n');
-          updatedContent += `\n\n${appendedMarkup}`;
-        }
-
-        // Update the page with the new content and return the updated version
-        const updatedPage = await this.updatePage(page.id, title, updatedContent, page.version);
-        return updatedPage;
-      }
+      throw new Error(ConfluenceService.EMBED_NOT_SUPPORTED_MSG);
     }
-
-    return page;
+    return this.createPage(spaceKey, title, content, parentId);
   }
 
-  private buildImageMarkup(image: ConfluenceImage & { resolvedFilename?: string }): string {
-    const filename = image.resolvedFilename || image.filename || 'image';
-    const alt = image.alt || filename;
-    const alignAttr = image.align ? ` ac:align="${image.align}" ac:layout="${image.align}"` : '';
-    const widthAttr = image.width ? ` ac:custom-width="true" ac:width="${image.width}"` : '';
-
-    let markup = `<ac:image${alignAttr}${widthAttr} ac:alt="${alt}"><ri:attachment ri:filename="${filename}" />`;
-
-    if (image.caption) {
-      markup += `<ac:caption><p>${image.caption}</p></ac:caption>`;
-    }
-    markup += '</ac:image>';
-
-    return markup;
-  }
-
-  // Page History Methods
-
-  async getPageHistory(pageId: string, limit: number = 25): Promise<any[]> {
-    const params = {
-      limit,
-      expand: 'content'
-    };
-
-    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/version`, params);
-
-    return response.results?.map((version: any) => ({
-      number: version.number,
-      by: version.by?.displayName || 'Unknown',
-      byAccountId: version.by?.accountId,
-      when: version.when || '',
-      message: version.message || '',
-      minorEdit: version.minorEdit || false,
-    })) || [];
-  }
-
-  // Page Children Methods
-
-  async getPageChildren(pageId: string, limit: number = 25): Promise<ConfluencePage[]> {
-    const params = {
-      limit,
-      expand: 'version,space'
-    };
-
-    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/child/page`, params);
-
-    return response.results?.map((page: any) => ({
-      id: page.id,
-      title: page.title,
-      content: '',
-      spaceKey: page.space?.key || '',
-      version: page.version?.number || 1,
-      created: page.history?.createdDate || '',
-      updated: page.version?.when || '',
-    })) || [];
-  }
-
-  // Label Methods
-
-  async getLabels(pageId: string): Promise<any[]> {
-    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/label`);
-    return response.results?.map((label: any) => ({
-      prefix: label.prefix,
-      name: label.name,
-      id: label.id,
-    })) || [];
-  }
-
-  async addLabels(pageId: string, labels: string[]): Promise<any[]> {
-    const data = labels.map(name => ({ prefix: 'global', name }));
-    const response = await this.client.post<any>(`/wiki/rest/api/content/${pageId}/label`, data);
-    return response.results?.map((label: any) => ({
-      prefix: label.prefix,
-      name: label.name,
-      id: label.id,
-    })) || [];
-  }
-
-  async removeLabel(pageId: string, label: string): Promise<void> {
-    await this.client.delete(`/wiki/rest/api/content/${pageId}/label/${encodeURIComponent(label)}`);
-  }
-
-  // Comment Methods
+  // ---------- Comments (footer comments) ----------
 
   async getComments(pageId: string): Promise<ConfluenceComment[]> {
-    const params = {
-      expand: 'body.storage,version,history'
-    };
+    const response = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}/footer-comments`,
+      { 'body-format': ConfluenceService.REPRESENTATION },
+    );
 
-    const response = await this.client.get<any>(`/wiki/rest/api/content/${pageId}/child/comment`, params);
-
-    return response.results?.map((comment: any) => ({
-      id: comment.id,
-      body: comment.body?.storage?.value || '',
-      author: comment.history?.createdBy?.displayName || 'Unknown',
-      authorAccountId: comment.history?.createdBy?.accountId,
-      created: comment.history?.createdDate || '',
-      updated: comment.version?.when || '',
-      version: comment.version?.number || 1
-    })) || [];
+    return (response?.results ?? []).map((comment: any): ConfluenceComment => ({
+      id: String(comment?.id ?? ''),
+      body: this.parseAdfBody(comment?.body),
+      // v2 does not return author displayName — only authorId — so we fall
+      // back to the id (or "Unknown") to preserve the public shape.
+      author: comment?.version?.authorId ?? 'Unknown',
+      authorAccountId: comment?.version?.authorId,
+      created: comment?.version?.createdAt ?? '',
+      updated: comment?.version?.createdAt ?? '',
+      version: comment?.version?.number ?? 1,
+    }));
   }
 
   async addComment(pageId: string, body: string): Promise<ConfluenceComment> {
     const data = {
-      type: 'comment',
-      container: {
-        id: pageId,
-        type: 'page'
-      },
-      body: {
-        atlas_doc_format: {
-          value: JSON.stringify(markdownToADF(body)),
-          representation: 'atlas_doc_format'
-        }
-      }
+      pageId,
+      body: this.adfBodyEnvelope(body),
     };
 
-    const comment = await this.client.post<any>('/wiki/rest/api/content', data);
+    const comment = await this.client.post<any>(
+      `${ConfluenceService.V2}/footer-comments?${ConfluenceService.BODY_FORMAT_QS}`,
+      data,
+    );
 
     return {
-      id: comment.id,
-      body: comment.body?.storage?.value || body,
-      author: comment.history?.createdBy?.displayName || 'Unknown',
-      authorAccountId: comment.history?.createdBy?.accountId,
-      created: comment.history?.createdDate || '',
-      updated: comment.version?.when || '',
-      version: comment.version?.number || 1
+      id: String(comment?.id ?? ''),
+      body: this.parseAdfBody(comment?.body) ?? body,
+      author: comment?.version?.authorId ?? 'Unknown',
+      authorAccountId: comment?.version?.authorId,
+      created: comment?.version?.createdAt ?? '',
+      updated: comment?.version?.createdAt ?? '',
+      version: comment?.version?.number ?? 1,
     };
   }
 
   async updateComment(commentId: string, body: string, version: number): Promise<ConfluenceComment> {
     const data = {
-      type: 'comment',
-      version: { number: version + 1 },
-      body: {
-        atlas_doc_format: {
-          value: JSON.stringify(markdownToADF(body)),
-          representation: 'atlas_doc_format'
-        }
-      }
+      version: { number: version + 1, message: '' },
+      body: this.adfBodyEnvelope(body),
     };
 
-    const comment = await this.client.put<any>(`/wiki/rest/api/content/${commentId}`, data);
+    const comment = await this.client.put<any>(
+      `${ConfluenceService.V2}/footer-comments/${commentId}?${ConfluenceService.BODY_FORMAT_QS}`,
+      data,
+    );
 
     return {
-      id: comment.id,
-      body: comment.body?.storage?.value || body,
-      author: comment.history?.createdBy?.displayName || 'Unknown',
-      authorAccountId: comment.history?.createdBy?.accountId,
-      created: comment.history?.createdDate || '',
-      updated: comment.version?.when || '',
-      version: comment.version?.number || 1
+      id: String(comment?.id ?? ''),
+      body: this.parseAdfBody(comment?.body) ?? body,
+      author: comment?.version?.authorId ?? 'Unknown',
+      authorAccountId: comment?.version?.authorId,
+      created: comment?.version?.createdAt ?? '',
+      updated: comment?.version?.createdAt ?? '',
+      version: comment?.version?.number ?? 1,
     };
   }
 
   async deleteComment(commentId: string): Promise<void> {
-    await this.client.delete(`/wiki/rest/api/content/${commentId}`);
+    await this.client.delete(`${ConfluenceService.V2}/footer-comments/${commentId}`);
   }
 }

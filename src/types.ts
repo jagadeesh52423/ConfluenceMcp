@@ -42,7 +42,13 @@ export interface JiraIssue {
 export interface ConfluencePage {
   id: string;
   title: string;
-  content: string;
+  /**
+   * Page body. With Confluence v2 / ADF, this is the parsed ADF JSON document
+   * (an object with type "doc" plus content/version). The legacy v1 search
+   * endpoint (kept for CQL) still returns storage-format HTML as a string —
+   * which is why the field type is `any` rather than a strict ADF interface.
+   */
+  content: any;
   spaceKey: string;
   version: number;
   created: string;
@@ -71,7 +77,11 @@ export interface ConfluenceImage {
 
 export interface ConfluenceComment {
   id: string;
-  body: string;
+  /**
+   * Comment body. With v2/ADF this is the parsed ADF JSON document.
+   * Type widened from string for the same reasons as ConfluencePage.content.
+   */
+  body: any;
   author: string;
   authorAccountId?: string;
   created: string;
