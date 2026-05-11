@@ -1,268 +1,124 @@
-# Atlassian MCP Server
+# 🔗 Atlassian MCP Server
 
 [![npm version](https://badge.fury.io/js/@jagadeesh52423%2Fatlassian-mcp-server.svg)](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive Model Context Protocol (MCP) server that provides AI assistants with access to Atlassian APIs including Jira, Confluence, and Bitbucket. **84 tools** across 3 services — the most complete Atlassian MCP server available.
+An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 84 tools covering deep CRUD across all three products.
 
-## Confluence content format (v1.2.0+)
+## What It Does
 
-Confluence input/output uses **ADF (Atlassian Document Format)**, not storage HTML or wiki markup:
+This server acts as a bridge between any MCP-compatible AI client (Claude Desktop, etc.) and your Atlassian Cloud instance. Instead of switching between browser tabs, you ask your AI assistant to search Confluence, create Jira tickets, review pull requests, and more -- all through natural language.
 
-- **Input** — `confluence_create_page`, `confluence_update_page`, `confluence_add_comment`, `confluence_update_comment` accept **Markdown**. The server converts it to ADF using the official `@atlaskit/editor-markdown-transformer` and submits via the Confluence v2 API.
-- **Output** — `confluence_get_page`, `confluence_get_pages_by_space`, `confluence_get_comments` return the body as a parsed **ADF JSON** document (an object, not a string). `ConfluencePage.content` and `ConfluenceComment.body` are typed `any` to reflect the JSON shape.
-- **CQL search** — `confluence_search_pages` still uses the **v1** REST endpoint (`/wiki/rest/api/search`) because v2 has no CQL equivalent. The `content` field on search hits is opaque legacy storage HTML; fetch the page by id with `confluence_get_page` for the ADF body.
-- **Image embedding** — inline image embedding (`confluence_embed_image`, and `confluence_create_page` with `images: [...]`) is **not supported in v1.2.0** because ADF media nodes require Atlassian Media API tokens. Calling either path returns an explicit error. Use `confluence_add_attachment` to upload files and reference them from the Confluence UI.
+### Key Features
 
-This is a breaking change from v1.1.x, which returned Confluence storage-format HTML strings. See "Phase 4 cleanup" in `docs/superpowers/specs/2026-05-08-adf-formatter-replacement-design.md`.
+- **Confluence** (20 tools) -- Search, create, read, update, and delete pages. Manage spaces, child pages, comments (full CRUD), attachments, labels, and version history. Input accepts Markdown (auto-converted to ADF); output is native ADF JSON.
+- **Jira** (48 tools) -- Full issue lifecycle: search, CRUD, comments, transitions, attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints, versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
+- **Bitbucket** (16 tools) -- Repository management, branches, commits, pull requests (create/update/list), PR comments with resolve/unresolve, and issue tracking.
+- **Smart Field Handling** -- AI-driven field suggestions during Jira transitions. Analyzes issue context to auto-suggest values for required fields (e.g., DB scripts, test cases), reducing manual input.
+- **Snapshot Safety Net** -- Automatic local snapshots of mutating operations (create/update/delete) with configurable retention, so you can recover from accidental changes.
 
-## Feature Comparison
+## Prerequisites
 
-How we stack up against the official Atlassian MCP server and the popular sooperset/mcp-atlassian:
-
-### Confluence
-
-| Feature | Ours | Official Atlassian | sooperset |
-|---|:---:|:---:|:---:|
-| Search / Get / Create / Update page | YES | YES | YES |
-| Delete page | YES | NO | YES |
-| Get spaces / pages by space | YES | YES | NO |
-| Get child pages | YES | YES | YES |
-| Get/Add comments | YES | YES | YES |
-| **Update/Delete comment** | **YES** | NO | NO |
-| Get/Add/Delete attachments | YES | NO | YES |
-| Embed image (with positioning) | NO¹ | NO | NO |
-| Create page with inline images | NO¹ | NO | NO |
-| Get/Add/Remove labels | YES | NO | Partial |
-| **Page version history** | YES | NO | YES |
-
-¹ Removed in v1.2.0 alongside the Confluence v2 / ADF migration. ADF media nodes need the Atlassian Media API; reinstating inline embedding is tracked as future work. Use `confluence_add_attachment` to upload files.
-
-### Jira
-
-| Feature | Ours | Official Atlassian | sooperset |
-|---|:---:|:---:|:---:|
-| Search/Get/Create/Update issue | YES | YES | YES |
-| Delete issue | YES | NO | YES |
-| Comments (full CRUD) | YES | Partial | Partial |
-| **Smart transition (AI auto-fill)** | **YES** | NO | NO |
-| Attachments (get/add/delete) | YES | NO | NO |
-| Issue links (full CRUD) | YES | NO | Partial |
-| Worklogs (full CRUD) | YES | Partial | Partial |
-| **Watchers (get/add/remove)** | **YES** | NO | NO |
-| **Subtasks (get/create)** | **YES** | NO | NO |
-| **Labels (get/add/remove)** | **YES** | NO | NO |
-| Agile boards & board issues | YES | NO | YES |
-| Sprints (list/create/update) | YES | NO | YES |
-| Sprint issues | YES | NO | YES |
-| Batch create issues | YES | NO | YES |
-| Dev status (PRs/branches/commits) | YES | NO | YES |
-| Issue history | YES | NO | YES |
-| Fields discovery | YES | NO | YES |
-| User lookup by name/email | YES | YES | YES |
-| Issue type metadata | YES | YES | NO |
-| Version/release management | YES | NO | YES |
-| Epic linking | YES | NO | YES |
-
-### Bitbucket
-
-| Feature | Ours | Official Atlassian | sooperset |
-|---|:---:|:---:|:---:|
-| **Full Bitbucket support (16 tools)** | **YES** | NO | NO |
-
-### Key Differentiators
-
-- **Only MCP server covering all 3 Atlassian products** — Confluence + Jira + Bitbucket
-- **Deepest CRUD coverage** — update/delete on comments, worklogs, labels where competitors only do create/read
-- **Smart Field Handling** — AI-driven field suggestions during Jira transitions, unique to this server
-- **84 total tools** vs ~45 (Official) and ~58 (sooperset)
-- **ADF / Confluence v2 native** — pages and comments are stored and returned as ADF, the format Confluence Cloud uses internally; markdown input is converted via the official `@atlaskit/editor-markdown-transformer`
-
-## Features
-
-### Confluence Integration (20 tools)
-- Search pages by text query
-- Get, create, update, and delete pages
-- List spaces and pages within spaces
-- **Child Pages**: Get child pages of a parent page
-- **Page History**: View version history of a page
-- **Attachments**: Add, list, and delete attachments
-- **Comments**: Full CRUD operations on page footer comments
-- **Labels**: Get, add, and remove labels on pages
-- **ADF / v2 API**: input is markdown (converted to ADF via official @atlaskit transformers); output is ADF JSON. CQL search stays on v1.
-
-### Jira Integration (48 tools)
-- Search issues by text, filters, or JQL query
-- Get, create, update, and delete issues
-- **Comments**: Full CRUD operations on issue comments
-- **Transitions**: Move issues between statuses with **Smart Field Handling**
-- **Attachments**: Add, list, and delete attachments
-- **Issue Links**: Create and manage links between issues
-- **Worklogs**: Full CRUD for time tracking entries
-- **Watchers**: Manage issue watchers
-- **Subtasks**: Create and list subtasks
-- **History**: View issue change history
-- **Labels**: Get, add, and remove labels on issues
-- **Fields**: Discover available standard and custom fields
-- **Agile**: List boards, get board issues, manage sprints
-- **Sprints**: Create, update, list sprint issues
-- **Versions**: Get, create, and update project versions/releases
-- **Batch Operations**: Bulk create up to 50 issues at once
-- **Dev Status**: View linked PRs, branches, and commits
-- **User Lookup**: Search users by name or email
-- **Issue Types**: Get available issue types per project
-- **Epic Linking**: Link issues to epics (next-gen + classic)
-- List projects
-
-#### Smart Field Handling
-Advanced transition management with intelligent field suggestions:
-- **Contextual Analysis**: Analyzes issue content to provide smart field suggestions
-- **Pattern Recognition**: Recognizes common field patterns (DB scripts, test cases, etc.)
-- **Auto-Suggestions**: Provides context-aware suggestions with reasoning
-- **Enhanced Error Handling**: Returns detailed field information instead of cryptic errors
-
-### Bitbucket Integration (16 tools)
-- List and search repositories
-- Get repository details and create new repositories
-- Manage branches and commits
-- **Pull Requests**: Create, update, list, and get PR details with diffs
-- **PR Comments**: Full CRUD with resolve/unresolve support
-- Issue tracking within repositories
+- **Node.js** >= 18
+- **Atlassian Cloud** account(s) with API tokens
+- An MCP-compatible client (e.g., [Claude Desktop](https://claude.ai/download))
 
 ## Installation
 
-### Option 1: Install from npm (Recommended)
+### From npm (recommended)
 
 ```bash
 npm install -g @jagadeesh52423/atlassian-mcp-server
 ```
 
-Or use with npx without installing:
+Or run without installing:
+
 ```bash
 npx @jagadeesh52423/atlassian-mcp-server
 ```
 
-### Option 2: Install from source
+### From source
 
-1. Clone this repository:
 ```bash
 git clone https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server.git
 cd atlassian-mcp-server
-```
-
-2. Install dependencies:
-```bash
 npm install
-```
-
-3. Build the project:
-```bash
 npm run build
 ```
 
 ## Configuration
 
-1. Copy the environment template:
+### 1. Set environment variables
+
+Copy the template and fill in your credentials:
+
 ```bash
 cp .env.example .env
 ```
 
-2. Fill in your Atlassian credentials in `.env`:
-
 ```env
-# Confluence Configuration
+# Confluence
 CONFLUENCE_DOMAIN=your-domain.atlassian.net
 CONFLUENCE_EMAIL=your-email@example.com
 CONFLUENCE_API_TOKEN=your-confluence-api-token
 
-# Jira Configuration
+# Jira
 JIRA_DOMAIN=your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-jira-api-token
 
-# Optional: OAuth Configuration (for advanced auth)
-JIRA_CLIENT_ID=your-client-id
-JIRA_CLIENT_SECRET=your-client-secret
-
-# Bitbucket Configuration
+# Bitbucket
 BITBUCKET_WORKSPACE=your-workspace
 BITBUCKET_USERNAME=your-username
 BITBUCKET_API_TOKEN=your-bitbucket-api-token
-
-# Legacy: Atlassian Configuration (backward compatibility)
-ATLASSIAN_DOMAIN=your-domain.atlassian.net
-ATLASSIAN_EMAIL=your-email@example.com
-ATLASSIAN_API_TOKEN=your-api-token
 ```
 
-### Getting API Tokens
+You can also set legacy `ATLASSIAN_*` variables as a fallback for Confluence and Jira. Bitbucket always requires its own credentials.
 
-#### Atlassian API Token
-1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-2. Click "Create API token"
-3. Give it a label and create
-4. Copy the token to your `.env` file
+<details>
+<summary>Optional: Jira OAuth and Snapshot settings</summary>
 
-#### Bitbucket API Token
-1. Go to your Bitbucket settings > Personal access tokens
-2. Create a new API token with required scopes:
-   - Repositories: Read, Write
-   - Issues: Read, Write
-   - Pull requests: Read, Write
-   - Pipelines: Read (if needed)
-3. Copy the token to your `.env` file
+```env
+# Jira OAuth (advanced auth)
+JIRA_CLIENT_ID=your-client-id
+JIRA_CLIENT_SECRET=your-client-secret
 
-**Note**: App passwords are deprecated as of September 9, 2025. Use API tokens instead.
+# Snapshot safety net (defaults shown)
+MCP_SNAPSHOTS_ENABLED=true
+MCP_SNAPSHOT_DIR=~/.atlassian-mcp-snapshots
+MCP_SNAPSHOT_RETENTION_DAYS=30
+```
+
+</details>
+
+### 2. Get an API token
+
+1. Go to [Atlassian API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Click **Create API token**, give it a name, and copy the value
+3. For Bitbucket, create a token under **Personal settings > Access tokens** with repo, issue, and PR scopes
 
 ## Usage
 
-### Running the Server
+### Running the server
 
-If installed globally:
 ```bash
+# Global install
 atlassian-mcp-server
-```
 
-If running from source:
-```bash
+# From source
 npm start
-```
 
-For development with auto-reload:
-```bash
+# Development (auto-reload)
 npm run dev
 ```
 
-### Integration with Claude Desktop
+### Claude Desktop integration
 
-Add the following to your Claude Desktop configuration file:
+Add one of the following to your Claude Desktop config:
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows:** `%APPDATA%/Claude/claude_desktop_config.json`
 
-#### If installed globally via npm:
-```json
-{
-  "mcpServers": {
-    "atlassian": {
-      "command": "atlassian-mcp-server",
-      "env": {
-        "CONFLUENCE_DOMAIN": "your-domain.atlassian.net",
-        "CONFLUENCE_EMAIL": "your-email@example.com",
-        "CONFLUENCE_API_TOKEN": "your-confluence-api-token",
-        "JIRA_DOMAIN": "your-domain.atlassian.net",
-        "JIRA_EMAIL": "your-email@example.com",
-        "JIRA_API_TOKEN": "your-jira-api-token",
-        "BITBUCKET_WORKSPACE": "your-workspace",
-        "BITBUCKET_USERNAME": "your-username",
-        "BITBUCKET_API_TOKEN": "your-bitbucket-api-token"
-      }
-    }
-  }
-}
-```
-
-#### If using npx:
 ```json
 {
   "mcpServers": {
@@ -272,267 +128,157 @@ Add the following to your Claude Desktop configuration file:
       "env": {
         "CONFLUENCE_DOMAIN": "your-domain.atlassian.net",
         "CONFLUENCE_EMAIL": "your-email@example.com",
-        "CONFLUENCE_API_TOKEN": "your-confluence-api-token",
+        "CONFLUENCE_API_TOKEN": "your-token",
         "JIRA_DOMAIN": "your-domain.atlassian.net",
         "JIRA_EMAIL": "your-email@example.com",
-        "JIRA_API_TOKEN": "your-jira-api-token",
+        "JIRA_API_TOKEN": "your-token",
         "BITBUCKET_WORKSPACE": "your-workspace",
         "BITBUCKET_USERNAME": "your-username",
-        "BITBUCKET_API_TOKEN": "your-bitbucket-api-token"
+        "BITBUCKET_API_TOKEN": "your-token"
       }
     }
   }
 }
 ```
 
-#### If installed from source:
+<details>
+<summary>Alternative: global install or from-source config</summary>
+
+**Global install:**
 ```json
 {
   "mcpServers": {
     "atlassian": {
-      "command": "node",
-      "args": ["/path/to/your/atlassian-mcp-server/dist/index.js"]
+      "command": "atlassian-mcp-server",
+      "env": { "..." : "same env vars as above" }
     }
   }
 }
 ```
 
+**From source:**
+```json
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "node",
+      "args": ["/path/to/atlassian-mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+</details>
+
 ## Available Tools
 
-### Confluence Tools (20 tools)
+### Confluence (20 tools)
 
 | Tool | Description |
 |------|-------------|
-| `confluence_search_pages` | Search pages by CQL text query (legacy v1; result `content` is opaque storage HTML) |
-| `confluence_get_page` | Get specific page by ID — returns ADF JSON `content` |
-| `confluence_create_page` | Create new page (markdown → ADF). Inline image embedding not supported in v1.2.0. |
-| `confluence_update_page` | Update existing page (markdown → ADF) |
+| `confluence_search_pages` | Search pages via CQL text query |
+| `confluence_get_page` | Get a page by ID (returns ADF JSON body) |
+| `confluence_create_page` | Create a page (accepts Markdown) |
+| `confluence_update_page` | Update a page (accepts Markdown) |
 | `confluence_delete_page` | Delete a page |
 | `confluence_get_spaces` | List all spaces |
-| `confluence_get_pages_by_space` | Get pages from specific space |
-| `confluence_get_page_children` | Get child pages of a parent page |
+| `confluence_get_pages_by_space` | Get pages in a space |
+| `confluence_get_page_children` | Get child pages |
 | `confluence_get_page_history` | Get page version history |
-| `confluence_get_attachments` | List attachments on a page |
-| `confluence_add_attachment` | Add attachment to a page |
-| `confluence_delete_attachment` | Delete attachment from a page |
-| `confluence_embed_image` | NOT SUPPORTED in v1.2.0 — returns an error. Use `confluence_add_attachment`. |
-| `confluence_get_comments` | Get footer comments on a page — returns ADF JSON `body` |
-| `confluence_add_comment` | Add footer comment (markdown → ADF) |
-| `confluence_update_comment` | Update existing footer comment (markdown → ADF) |
-| `confluence_delete_comment` | Delete comment from a page |
-| `confluence_get_labels` | Get labels on a page |
+| `confluence_get_attachments` | List page attachments |
+| `confluence_add_attachment` | Upload an attachment |
+| `confluence_delete_attachment` | Delete an attachment |
+| `confluence_get_comments` | Get footer comments (ADF JSON) |
+| `confluence_add_comment` | Add a comment (Markdown) |
+| `confluence_update_comment` | Update a comment (Markdown) |
+| `confluence_delete_comment` | Delete a comment |
+| `confluence_get_labels` | Get page labels |
 | `confluence_add_labels` | Add labels to a page |
-| `confluence_remove_label` | Remove a label from a page |
+| `confluence_remove_label` | Remove a label |
 
-### Jira Tools (48 tools)
+### Jira (48 tools)
 
-| Tool | Description |
-|------|-------------|
-| **Core** | |
-| `jira_search_issues` | Search issues by text, filters, or JQL |
-| `jira_get_issue` | Get specific issue by key |
-| `jira_create_issue` | Create new issue with custom fields |
-| `jira_update_issue` | Update existing issue |
-| `jira_delete_issue` | Delete issue with optional subtask deletion |
-| `jira_get_projects` | List all projects |
-| `jira_get_issue_types` | Get available issue types for a project |
-| `jira_get_fields` | Discover available standard and custom fields |
-| `jira_lookup_user` | Look up users by name or email |
-| **Comments** | |
-| `jira_add_comment` | Add comment to issue |
-| `jira_get_comments` | Get comments on an issue |
-| `jira_update_comment` | Update existing comment |
-| `jira_delete_comment` | Delete comment from issue |
-| **Transitions** | |
-| `jira_get_issue_transitions` | Get available transitions |
-| `jira_transition_issue` | Change issue status |
-| `jira_transition_issue_interactive` | Change status with smart field handling |
-| **Attachments** | |
-| `jira_get_attachments` | List attachments on an issue |
-| `jira_add_attachment` | Add attachment to issue |
-| `jira_delete_attachment` | Delete attachment from issue |
-| **Issue Links** | |
-| `jira_get_issue_links` | Get linked issues |
-| `jira_create_issue_link` | Create link between issues |
-| `jira_delete_issue_link` | Delete issue link |
-| `jira_get_link_types` | Get available link types |
-| **Worklogs** | |
-| `jira_get_worklogs` | Get work logs on an issue |
-| `jira_add_worklog` | Add work log entry |
-| `jira_update_worklog` | Update work log entry |
-| `jira_delete_worklog` | Delete work log entry |
-| **Watchers** | |
-| `jira_get_watchers` | Get issue watchers |
-| `jira_add_watcher` | Add watcher to issue |
-| `jira_remove_watcher` | Remove watcher from issue |
-| **Subtasks** | |
-| `jira_get_subtasks` | Get subtasks of an issue |
-| `jira_create_subtask` | Create subtask for an issue |
-| **Labels** | |
-| `jira_get_labels` | Get available labels |
-| `jira_add_labels` | Add labels to an issue |
-| `jira_remove_labels` | Remove labels from an issue |
-| **History** | |
-| `jira_get_issue_history` | Get issue change history |
-| **Agile / Sprints** | |
-| `jira_get_agile_boards` | List agile boards with optional filters |
-| `jira_get_board_issues` | Get issues on a board |
-| `jira_get_sprints` | Get sprints for a board |
-| `jira_get_sprint_issues` | Get issues in a sprint |
-| `jira_create_sprint` | Create a new sprint |
-| `jira_update_sprint` | Update sprint (name, state, dates, goal) |
-| **Versions / Releases** | |
-| `jira_get_project_versions` | Get all versions for a project |
-| `jira_create_version` | Create a new version/release |
-| `jira_update_version` | Update version (release, archive, dates) |
-| **Batch & Dev** | |
-| `jira_batch_create_issues` | Bulk create up to 50 issues |
-| `jira_get_dev_status` | Get linked PRs, branches, commits |
-| **Epic** | |
-| `jira_link_to_epic` | Link an issue to an epic |
+| Category | Tools |
+|----------|-------|
+| **Core** | `search_issues`, `get_issue`, `create_issue`, `update_issue`, `delete_issue`, `get_projects`, `get_issue_types`, `get_fields`, `lookup_user` |
+| **Comments** | `add_comment`, `get_comments`, `update_comment`, `delete_comment` |
+| **Transitions** | `get_issue_transitions`, `transition_issue`, `transition_issue_interactive` (smart field handling) |
+| **Attachments** | `get_attachments`, `add_attachment`, `delete_attachment` |
+| **Issue Links** | `get_issue_links`, `create_issue_link`, `delete_issue_link`, `get_link_types` |
+| **Worklogs** | `get_worklogs`, `add_worklog`, `update_worklog`, `delete_worklog` |
+| **Watchers** | `get_watchers`, `add_watcher`, `remove_watcher` |
+| **Subtasks** | `get_subtasks`, `create_subtask` |
+| **Labels** | `get_labels`, `add_labels`, `remove_labels` |
+| **History** | `get_issue_history` |
+| **Agile** | `get_agile_boards`, `get_board_issues`, `get_sprints`, `get_sprint_issues`, `create_sprint`, `update_sprint` |
+| **Versions** | `get_project_versions`, `create_version`, `update_version` |
+| **Batch/Dev** | `batch_create_issues`, `get_dev_status` |
+| **Epic** | `link_to_epic` |
 
-### Bitbucket Tools (16 tools)
+All Jira tools are prefixed with `jira_`.
+
+### Bitbucket (16 tools)
 
 | Tool | Description |
 |------|-------------|
-| `bitbucket_get_repositories` | List repositories in workspace |
-| `bitbucket_get_repository` | Get specific repository details |
-| `bitbucket_create_repository` | Create new repository |
+| `bitbucket_get_repositories` | List workspace repositories |
+| `bitbucket_get_repository` | Get repository details |
+| `bitbucket_create_repository` | Create a repository |
 | `bitbucket_get_pull_requests` | List pull requests |
-| `bitbucket_get_pull_request` | Get specific PR with diff |
-| `bitbucket_create_pull_request` | Create new pull request |
-| `bitbucket_update_pull_request` | Update title, description, or destination branch of a PR |
+| `bitbucket_get_pull_request` | Get a PR with diff |
+| `bitbucket_create_pull_request` | Create a pull request |
+| `bitbucket_update_pull_request` | Update a pull request |
 | `bitbucket_get_branches` | List branches |
 | `bitbucket_get_commits` | List commits |
 | `bitbucket_get_issues` | List repository issues |
-| `bitbucket_create_issue` | Create new issue |
+| `bitbucket_create_issue` | Create an issue |
 | `bitbucket_get_pr_comments` | Get PR comments |
-| `bitbucket_add_pr_comment` | Add comment to a PR |
-| `bitbucket_update_pr_comment` | Update PR comment |
-| `bitbucket_delete_pr_comment` | Delete PR comment |
-| `bitbucket_resolve_pr_comment` | Resolve a PR comment |
-| `bitbucket_unresolve_pr_comment` | Unresolve a PR comment |
+| `bitbucket_add_pr_comment` | Add a PR comment |
+| `bitbucket_update_pr_comment` | Update a PR comment |
+| `bitbucket_delete_pr_comment` | Delete a PR comment |
+| `bitbucket_resolve_pr_comment` | Resolve/unresolve a PR comment |
 
-## Example Usage with AI Assistant
+## Confluence Content Format (v1.2.0+)
 
-```
-User: "Search for pages about API documentation in Confluence"
-AI: Uses confluence_search_pages with query "API documentation"
+Confluence pages and comments use **ADF (Atlassian Document Format)** natively:
 
-User: "Create a new Jira issue for the bug I found"
-AI: Uses jira_create_issue with appropriate project, summary, and description
+- **Input** -- `create_page`, `update_page`, `add_comment`, `update_comment` accept **Markdown**, which the server converts to ADF using the official `@atlaskit/editor-markdown-transformer`.
+- **Output** -- `get_page`, `get_comments` return ADF JSON (an object, not a string).
+- **Search** -- `search_pages` uses the v1 REST API (CQL); result content is legacy storage HTML. Fetch the page by ID for the ADF body.
+- **Inline images** -- Not currently supported via ADF media nodes (requires Atlassian Media API tokens). Use `confluence_add_attachment` instead.
 
-User: "Move this Jira ticket to Code Review status"
-AI: Uses jira_transition_issue_interactive which automatically:
-     - Analyzes the issue content for context
-     - Provides smart suggestions for required fields
-     - Handles transition with minimal user input
+## Project Structure
 
-User: "What pull requests are open in my main repository?"
-AI: Uses bitbucket_get_pull_requests with your repository name
-
-User: "Create 10 issues for the sprint backlog"
-AI: Uses jira_batch_create_issues to create all at once
-
-User: "Show me the active sprint and its issues"
-AI: Uses jira_get_sprints then jira_get_sprint_issues
-```
-
-### Smart Field Handling Examples
-
-```
-Scenario: Transitioning a template configuration issue
-Issue: "Update notification template to use 'Prefr App'"
-Smart Suggestion: DB Script = "No" (Template changes use MOFU tool)
-                  Test Cases = "No" (Template changes don't require separate tests)
-
-Scenario: Transitioning a new feature development issue
-Issue: "Implement user authentication system"
-Smart Suggestion: DB Script = "Yes" (New features typically need database changes)
-                  Test Cases = "Yes" (New features require comprehensive testing)
-```
-
-## Development
-
-### Project Structure
 ```
 src/
-├── index.ts                # Main MCP server & tool routing
-├── types.ts                # TypeScript interfaces
-├── config.ts               # Configuration management
-├── constants.ts            # Application-wide constants
-├── error-handler.ts        # Structured error handling
-├── clients/
-│   ├── base-client.ts      # Base HTTP client
-│   ├── confluence-client.ts
-│   ├── jira-client.ts
-│   └── bitbucket-client.ts
-├── services/
-│   ├── confluence.ts       # Confluence API service
-│   ├── jira.ts             # Jira API service (with smart field handling)
-│   └── bitbucket.ts        # Bitbucket API service
-├── tools/
-│   ├── index.ts            # Tool aggregation
-│   ├── confluence-tools.ts # Confluence tool definitions
-│   ├── jira-tools.ts       # Jira tool definitions
-│   └── bitbucket-tools.ts  # Bitbucket tool definitions
-└── handlers/
-    ├── confluence-handlers.ts
-    ├── jira-handlers.ts
-    └── bitbucket-handlers.ts
+├── index.ts              # Server entry point and tool routing
+├── config.ts             # Environment variable loading and validation
+├── types.ts              # TypeScript interfaces
+├── constants.ts          # Shared constants
+├── error-handler.ts      # Structured error responses
+├── formatters/           # Markdown-to-ADF and ADF-to-text converters
+├── clients/              # HTTP clients (one per Atlassian product)
+├── services/             # Business logic for each product
+│   └── jira/             # Jira sub-modules (agile, comments, transitions, etc.)
+├── handlers/             # MCP request handlers
+├── tools/                # MCP tool definitions (schemas)
+├── registry/             # Tool dispatch registry
+└── snapshot/             # Snapshot safety net (auto-backup before mutations)
 ```
 
-### Building and Testing
+## Security
 
-```bash
-# Build
-npm run build
-
-# Development with auto-reload
-npm run dev
-
-# Clean build artifacts
-npm run clean
-```
-
-## Security Considerations
-
-- API tokens are stored in environment variables
-- All API calls use HTTPS
-- Tokens should have minimal required permissions
-- Never commit `.env` files to version control
-
-## Error Handling
-
-The server includes comprehensive error handling:
-- API authentication errors
-- Rate limiting responses
-- Network connectivity issues
-- Invalid parameters
-- Resource not found errors
-- Actionable tips for common issues
-
-## Rate Limiting
-
-Respects Atlassian API rate limits:
-- Jira Cloud: 10 requests per second
-- Confluence Cloud: 10 requests per second
-- Bitbucket Cloud: 1000 requests per hour
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- Credentials are read from environment variables only; never committed to source control.
+- All API calls use HTTPS with Basic Auth (base64-encoded `email:token`).
+- Grant tokens the minimum required permissions.
+- Snapshots are stored locally in `~/.atlassian-mcp-snapshots` by default.
 
 ## License
 
-MIT License - see LICENSE file for details
+[MIT](LICENSE)
 
-## Support
+## Links
 
-- **npm package**: [@jagadeesh52423/atlassian-mcp-server](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
-- **Issues & Feature Requests**: [GitHub Issues](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server/issues)
-- **Source Code**: [GitHub Repository](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server)
+- **npm:** [@jagadeesh52423/atlassian-mcp-server](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
+- **Source:** [GitHub](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server)
+- **Issues:** [GitHub Issues](https://github.com/jagadeeshpulamarasetti/atlassian-mcp-server/issues)
