@@ -1,4 +1,5 @@
 import { ConfluenceService } from '../services/confluence.js';
+import { ConfluenceCommentFilter } from '../types.js';
 import {
   ToolResponse,
   successResponse,
@@ -191,11 +192,11 @@ export class ConfluenceHandlers extends BaseHandler {
     );
   }
 
-  async getComments(args: { pageId: string }): Promise<ToolResponse> {
-    const { pageId } = args;
+  async getComments(args: { pageId: string; commentType?: ConfluenceCommentFilter }): Promise<ToolResponse> {
+    const { pageId, commentType = 'all' } = args;
     return this.handle(
-      () => this.service.getComments(pageId),
-      { operation: 'Failed to get comments', params: { 'Page ID': pageId }, tip: ERROR_TIPS.CONFLUENCE_PAGE_VIEW },
+      () => this.service.getComments(pageId, commentType),
+      { operation: 'Failed to get comments', params: { 'Page ID': pageId, 'Comment Type': commentType }, tip: ERROR_TIPS.CONFLUENCE_PAGE_VIEW },
       jsonResponse
     );
   }

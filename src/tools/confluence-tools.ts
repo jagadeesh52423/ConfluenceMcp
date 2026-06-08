@@ -281,13 +281,18 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_comments',
-    description: 'Get all footer comments for a Confluence page. The `body` field on each comment is an ADF JSON document.',
+    description: 'Get comments for a Confluence page. Returns both footer (page-level) and inline (text-anchored) comments by default. Each comment carries a `type` field ("footer" or "inline"); the `body` field is an ADF JSON document. Inline comments also include `anchoredText` (the highlighted page text the comment is attached to), `resolutionStatus` (e.g. "open", "resolved"), and `markerRef`.',
     inputSchema: {
       type: 'object',
       properties: {
         pageId: {
           type: 'string',
           description: 'The page ID to get comments for',
+        },
+        commentType: {
+          type: 'string',
+          enum: ['footer', 'inline', 'all'],
+          description: 'Which comments to return: "footer" (page-level only), "inline" (text-anchored only), or "all" (both). Defaults to "all".',
         },
       },
       required: ['pageId'],

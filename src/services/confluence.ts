@@ -1,5 +1,5 @@
 import { ConfluenceClient } from '../clients/confluence-client.js';
-import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, SearchOptions } from '../types.js';
+import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, ConfluenceCommentType, ConfluenceCommentFilter, SearchOptions } from '../types.js';
 import { markdownToADF } from '../formatters/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -376,25 +376,93 @@ export class ConfluenceService {
     return this.createPage(spaceKey, title, content, parentId);
   }
 
-  // ---------- Comments (footer comments) ----------
+  // ---------- Comments (footer + inline) ----------
 
-  async getComments(pageId: string): Promise<ConfluenceComment[]> {
+  /**
+   * Registry mapping each comment kind to the v2 sub-resource path and the
+   * mapper that shapes its raw response. To support a new comment kind, add an
+   * entry here — `getComments` and the tool layer require no other changes.
+   */
+  private static readonly COMMENT_SOURCES: Record<
+    ConfluenceCommentType,
+    { path: string; map: 'mapFooterComment' | 'mapInlineComment' }
+  > = {
+    footer: { path: 'footer-comments', map: 'mapFooterComment' },
+    inline: { path: 'inline-comments', map: 'mapInlineComment' },
+  };
+
+  /**
+   * Get comments for a page. `commentType` selects which kinds to return:
+   *   - 'footer' — page-level (footer) comments only
+   *   - 'inline' — text-anchored (inline) comments only
+   *   - 'all'    — both kinds (default), each tagged via its `type` field
+   *
+   * Inline comments additionally carry `anchoredText` (the highlighted page
+   * selection) and `resolutionStatus`. Footer comments leave those undefined.
+   */
+  async getComments(
+    pageId: string,
+    commentType: ConfluenceCommentFilter = 'all',
+  ): Promise<ConfluenceComment[]> {
+    const kinds: ConfluenceCommentType[] =
+      commentType === 'all'
+        ? (Object.keys(ConfluenceService.COMMENT_SOURCES) as ConfluenceCommentType[])
+        : [commentType];
+
+    const batches = await Promise.all(kinds.map((kind) => this.fetchComments(pageId, kind)));
+    return batches.flat();
+  }
+
+  /** Fetch and shape a single comment kind for a page. */
+  private async fetchComments(
+    pageId: string,
+    kind: ConfluenceCommentType,
+  ): Promise<ConfluenceComment[]> {
+    const source = ConfluenceService.COMMENT_SOURCES[kind];
     const response = await this.client.get<any>(
-      `${ConfluenceService.V2}/pages/${pageId}/footer-comments`,
+      `${ConfluenceService.V2}/pages/${pageId}/${source.path}`,
       { 'body-format': ConfluenceService.REPRESENTATION },
     );
+    const map = this[source.map].bind(this);
+    return (response?.results ?? []).map((comment: any) => map(comment));
+  }
 
-    return (response?.results ?? []).map((comment: any): ConfluenceComment => ({
+  /**
+   * Shape the version/author/body fields shared by every v2 comment kind.
+   * v2 does not return author displayName — only authorId — so we fall back to
+   * the id (or "Unknown") to preserve the public shape.
+   */
+  private mapBaseComment(comment: any): Omit<ConfluenceComment, 'type'> {
+    return {
       id: String(comment?.id ?? ''),
       body: this.parseAdfBody(comment?.body),
-      // v2 does not return author displayName — only authorId — so we fall
-      // back to the id (or "Unknown") to preserve the public shape.
       author: comment?.version?.authorId ?? 'Unknown',
       authorAccountId: comment?.version?.authorId,
       created: comment?.version?.createdAt ?? '',
       updated: comment?.version?.createdAt ?? '',
       version: comment?.version?.number ?? 1,
-    }));
+      webuiLink: comment?._links?.webui,
+    };
+  }
+
+  private mapFooterComment(comment: any): ConfluenceComment {
+    return { ...this.mapBaseComment(comment), type: 'footer' };
+  }
+
+  private mapInlineComment(comment: any): ConfluenceComment {
+    const properties = comment?.properties ?? {};
+    return {
+      ...this.mapBaseComment(comment),
+      type: 'inline',
+      // Confluence exposes resolution under `resolutionStatus` (e.g. 'open',
+      // 'resolved', 'reopened', 'dangling').
+      resolutionStatus: comment?.resolutionStatus,
+      // The anchored selection appears under both camelCase and kebab-case keys
+      // depending on API revision — prefer camelCase, fall back to kebab-case.
+      anchoredText:
+        properties.inlineOriginalSelection ?? properties['inline-original-selection'],
+      markerRef: properties.inlineMarkerRef ?? properties['inline-marker-ref'],
+    };
   }
 
   async addComment(pageId: string, body: string): Promise<ConfluenceComment> {
@@ -408,14 +476,12 @@ export class ConfluenceService {
       data,
     );
 
+    // Reuse the shared base mapper for a consistent shape; keep the `?? body`
+    // fallback since a freshly-created comment response may omit the body.
     return {
-      id: String(comment?.id ?? ''),
+      ...this.mapBaseComment(comment),
+      type: 'footer',
       body: this.parseAdfBody(comment?.body) ?? body,
-      author: comment?.version?.authorId ?? 'Unknown',
-      authorAccountId: comment?.version?.authorId,
-      created: comment?.version?.createdAt ?? '',
-      updated: comment?.version?.createdAt ?? '',
-      version: comment?.version?.number ?? 1,
     };
   }
 
@@ -431,13 +497,9 @@ export class ConfluenceService {
     );
 
     return {
-      id: String(comment?.id ?? ''),
+      ...this.mapBaseComment(comment),
+      type: 'footer',
       body: this.parseAdfBody(comment?.body) ?? body,
-      author: comment?.version?.authorId ?? 'Unknown',
-      authorAccountId: comment?.version?.authorId,
-      created: comment?.version?.createdAt ?? '',
-      updated: comment?.version?.createdAt ?? '',
-      version: comment?.version?.number ?? 1,
     };
   }
 

@@ -75,8 +75,23 @@ export interface ConfluenceImage {
   align?: 'left' | 'center' | 'right';
 }
 
+/**
+ * Kinds of Confluence comment this server can read.
+ * Add a new value here and register a fetcher in ConfluenceService to support
+ * another comment kind — callers and the tool layer need no other changes.
+ */
+export type ConfluenceCommentType = 'footer' | 'inline';
+
+/** Selector accepted by getComments — a single kind or every kind. */
+export type ConfluenceCommentFilter = ConfluenceCommentType | 'all';
+
 export interface ConfluenceComment {
   id: string;
+  /**
+   * Discriminates footer (page-level) from inline (text-anchored) comments.
+   * Always populated so callers can tell the two apart in a mixed `all` result.
+   */
+  type: ConfluenceCommentType;
   /**
    * Comment body. With v2/ADF this is the parsed ADF JSON document.
    * Type widened from string for the same reasons as ConfluencePage.content.
@@ -87,6 +102,21 @@ export interface ConfluenceComment {
   created: string;
   updated?: string;
   version: number;
+  // ----- inline-comment-only fields (undefined for footer comments) -----
+  /**
+   * Resolution status reported by Confluence for inline comments, e.g.
+   * 'open', 'resolved', 'reopened', 'dangling'. Undefined for footer comments.
+   */
+  resolutionStatus?: string;
+  /**
+   * The highlighted page text the inline comment is anchored to (the original
+   * selection the author commented on). Undefined for footer comments.
+   */
+  anchoredText?: string;
+  /** Marker reference linking the comment to its anchor in the page body. */
+  markerRef?: string;
+  /** Relative web UI link to view the comment in context, when provided. */
+  webuiLink?: string;
 }
 
 export interface BitbucketPRComment {

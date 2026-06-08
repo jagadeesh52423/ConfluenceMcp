@@ -188,7 +188,7 @@ Add one of the following to your Claude Desktop config:
 | `confluence_get_attachments` | List page attachments |
 | `confluence_add_attachment` | Upload an attachment |
 | `confluence_delete_attachment` | Delete an attachment |
-| `confluence_get_comments` | Get footer comments (ADF JSON) |
+| `confluence_get_comments` | Get footer and/or inline comments (ADF JSON). `commentType`: `footer` \| `inline` \| `all` (default `all`) |
 | `confluence_add_comment` | Add a comment (Markdown) |
 | `confluence_update_comment` | Update a comment (Markdown) |
 | `confluence_delete_comment` | Delete a comment |
@@ -244,7 +244,7 @@ Confluence pages and comments use **ADF (Atlassian Document Format)** natively:
 
 - **Input** -- `create_page`, `update_page`, `add_comment`, `update_comment` accept **Markdown**, which the server converts to ADF using the official `@atlaskit/editor-markdown-transformer`.
 - **Output** -- `get_page`, `get_comments` return ADF JSON (an object, not a string).
-- **Search** -- `search_pages` uses the v1 REST API (CQL); result content is legacy storage HTML. Fetch the page by ID for the ADF body.
+- **Comments** -- `get_comments` returns **both footer (page-level) and inline (text-anchored) comments** by default. Use the `commentType` param (`footer` | `inline` | `all`, default `all`) to filter. Every comment carries a `type` field (`"footer"` or `"inline"`). Inline comments additionally include `anchoredText` (the highlighted page text the comment is attached to), `resolutionStatus` (e.g. `"open"`, `"resolved"`), `markerRef`, and `webuiLink`. _Backwards-compatibility note: callers that previously relied on `get_comments` returning footer comments only will now also receive inline comments under the default `all`; pass `commentType: "footer"` to restore the old footer-only behaviour. The new `type` field is additive and does not remove any existing field._
 - **Inline images** -- Not currently supported via ADF media nodes (requires Atlassian Media API tokens). Use `confluence_add_attachment` instead.
 
 ## Project Structure
