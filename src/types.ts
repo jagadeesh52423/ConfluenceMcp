@@ -131,6 +131,12 @@ export interface BitbucketPRComment {
     from?: number;
     to?: number;
   };
+  /** Whether the comment has been resolved. */
+  resolved?: boolean;
+  /** ISO timestamp of when the comment was resolved, when available. */
+  resolvedOn?: string;
+  /** Display name of the user who resolved the comment, when available. */
+  resolvedBy?: string;
 }
 
 export interface BitbucketRepository {

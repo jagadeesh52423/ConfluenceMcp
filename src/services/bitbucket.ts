@@ -90,6 +90,9 @@ export class BitbucketService {
       created: c.created_on,
       updated: c.updated_on,
       inline: c.inline ? { path: c.inline.path, from: c.inline.from, to: c.inline.to } : undefined,
+      resolved: !!c.resolution,
+      resolvedOn: c.resolution?.created_on,
+      resolvedBy: c.resolution?.user?.display_name,
     };
   }
 
@@ -308,18 +311,23 @@ export class BitbucketService {
   }
 
   async resolvePRComment(repoName: string, prId: number, commentId: number): Promise<BitbucketPRComment> {
-    const response = await this.client.put(
-      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
-      { resolution: { type: 'RESOLVED' } }
+    await this.client.post(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}/resolve`,
+      {}
     );
-    return BitbucketService.mapComment(response.data);
+    const getResponse = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`
+    );
+    return BitbucketService.mapComment(getResponse.data);
   }
 
   async unresolvePRComment(repoName: string, prId: number, commentId: number): Promise<BitbucketPRComment> {
-    const response = await this.client.put(
-      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
-      { resolution: null }
+    await this.client.delete(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}/resolve`
     );
-    return BitbucketService.mapComment(response.data);
+    const getResponse = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`
+    );
+    return BitbucketService.mapComment(getResponse.data);
   }
 }
