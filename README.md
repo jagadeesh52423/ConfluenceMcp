@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/@jagadeesh52423%2Fatlassian-mcp-server.svg)](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 84 tools covering deep CRUD across all three products.
+An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 86 tools covering deep CRUD across all three products.
 
 ## What It Does
 
@@ -12,8 +12,8 @@ This server acts as a bridge between any MCP-compatible AI client (Claude Deskto
 ### Key Features
 
 - **Confluence** (20 tools) -- Search, create, read, update, and delete pages. Manage spaces, child pages, comments (full CRUD), attachments, labels, and version history. Input accepts Markdown (auto-converted to ADF); output is native ADF JSON.
-- **Jira** (48 tools) -- Full issue lifecycle: search, CRUD, comments, transitions, attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints, versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
-- **Bitbucket** (16 tools) -- Repository management, branches, commits, pull requests (create/update/list), PR comments with resolve/unresolve, and issue tracking.
+- **Jira** (49 tools) -- Full issue lifecycle: search, CRUD, comments, transitions, attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints (incl. moving issues into a sprint), versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
+- **Bitbucket** (17 tools) -- Repository management, branches, commits, pull requests (create/update/list), PR comments with resolve/unresolve, and issue tracking.
 - **Smart Field Handling** -- AI-driven field suggestions during Jira transitions. Analyzes issue context to auto-suggest values for required fields (e.g., DB scripts, test cases), reducing manual input.
 - **Snapshot Safety Net** -- Automatic local snapshots of mutating operations (create/update/delete) with configurable retention, so you can recover from accidental changes.
 
@@ -196,7 +196,7 @@ Add one of the following to your Claude Desktop config:
 | `confluence_add_labels` | Add labels to a page |
 | `confluence_remove_label` | Remove a label |
 
-### Jira (48 tools)
+### Jira (49 tools)
 
 | Category | Tools |
 |----------|-------|
@@ -210,14 +210,14 @@ Add one of the following to your Claude Desktop config:
 | **Subtasks** | `get_subtasks`, `create_subtask` |
 | **Labels** | `get_labels`, `add_labels`, `remove_labels` |
 | **History** | `get_issue_history` |
-| **Agile** | `get_agile_boards`, `get_board_issues`, `get_sprints`, `get_sprint_issues`, `create_sprint`, `update_sprint` |
+| **Agile** | `get_agile_boards`, `get_board_issues`, `get_sprints`, `get_sprint_issues`, `create_sprint`, `update_sprint`, `move_issues_to_sprint` |
 | **Versions** | `get_project_versions`, `create_version`, `update_version` |
 | **Batch/Dev** | `batch_create_issues`, `get_dev_status` |
 | **Epic** | `link_to_epic` |
 
 All Jira tools are prefixed with `jira_`.
 
-### Bitbucket (16 tools)
+### Bitbucket (17 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -236,7 +236,14 @@ All Jira tools are prefixed with `jira_`.
 | `bitbucket_add_pr_comment` | Add a PR comment |
 | `bitbucket_update_pr_comment` | Update a PR comment |
 | `bitbucket_delete_pr_comment` | Delete a PR comment |
-| `bitbucket_resolve_pr_comment` | Resolve/unresolve a PR comment |
+| `bitbucket_resolve_pr_comment` | Mark a PR comment thread as resolved |
+| `bitbucket_unresolve_pr_comment` | Reopen (unresolve) a PR comment thread |
+
+### PR comment resolution (v1.3.0+)
+
+- `bitbucket_resolve_pr_comment` / `bitbucket_unresolve_pr_comment` use Bitbucket's dedicated resolution sub-resource (`POST`/`DELETE .../comments/{id}/resolve`) and return the refreshed comment.
+- **Top-level comments only** -- Bitbucket only allows resolving/unresolving top-level review comments, not replies. Calling these on a reply returns `Comment is not a top-level comment`.
+- Comments returned by `bitbucket_get_pr_comments`, `bitbucket_resolve_pr_comment`, and `bitbucket_unresolve_pr_comment` now include a `resolved` boolean. When a comment is resolved, the single-comment responses also include `resolvedOn` (ISO timestamp) and `resolvedBy` (display name); these resolution details are not present in the bulk list response.
 
 ## Confluence Content Format (v1.2.0+)
 
