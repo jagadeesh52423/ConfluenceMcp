@@ -195,3 +195,10 @@ debug.log
 test-*.js
 test-*.cjs
 test-*.mjs
+
+# Data exports — these get dropped in the repo root while investigating and
+# are painful to remove from history once committed.
+*.csv
+
+# Superpowers docs are machine-local, never committed.
+.claude/superpowers/

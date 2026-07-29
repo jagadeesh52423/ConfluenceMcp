@@ -1,6 +1,12 @@
 import { ConfluenceClient } from '../clients/confluence-client.js';
-import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, ConfluenceCommentType, ConfluenceCommentFilter, SearchOptions } from '../types.js';
-import { markdownToADF } from '../formatters/index.js';
+import { ConfluencePage, ConfluenceAttachment, ConfluenceImage, ConfluenceComment, ConfluenceCommentType, ConfluenceCommentFilter, InlineCommentRepair, SearchOptions } from '../types.js';
+import {
+  markdownToADF,
+  collectAnnotations,
+  reapplyAnnotations,
+  locateAnnotation,
+  applyLocator,
+} from '../formatters/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -177,12 +183,65 @@ export class ConfluenceService {
     return this.mapV2Page(page, spaceKey);
   }
 
-  async updatePage(pageId: string, title: string, content: string, version: number): Promise<ConfluencePage> {
+  /**
+   * Replace a page body, carrying inline-comment anchors over to the new text.
+   *
+   * Inline comments are `annotation` marks inside the body, so a body rebuilt
+   * from markdown would drop every one of them. We read the live body first and
+   * re-anchor each marker onto text that survived the edit; `inlineComments`
+   * reports what could and could not be re-anchored.
+   *
+   * ponytail: costs one extra GET per update — there is no way to know whether
+   * a page carries markers without reading it.
+   */
+  async updatePage(
+    pageId: string,
+    title: string,
+    content: string,
+    version: number,
+  ): Promise<
+    ConfluencePage & { inlineComments?: { preserved: number; dropped: string[]; ambiguous: string[] } }
+  > {
+    const current = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+    );
+    const priorBody = this.parseAdfBody(current?.body);
+    const annotations = collectAnnotations(priorBody);
+
+    // Structural locator first — it knows which table row or block the comment
+    // sat in, so it resolves anchors whose text repeats elsewhere on the page.
+    // Unambiguous text search is the fallback for text that moved between
+    // blocks. Neither guesses: an anchor matching several places is reported.
+    let doc = markdownToADF(content);
+    const preserved: string[] = [];
+    const ambiguous: string[] = [];
+    const dropped: string[] = [];
+    for (const annotation of annotations) {
+      const locator = locateAnnotation(priorBody, annotation.id);
+      if (locator) {
+        const applied = applyLocator(doc, locator, annotation.id);
+        if (applied.status === 'exact') {
+          doc = applied.doc;
+          preserved.push(annotation.text);
+          continue;
+        }
+        if (applied.status === 'ambiguous') {
+          ambiguous.push(annotation.text);
+          continue;
+        }
+      }
+      const fallback = reapplyAnnotations(doc, [annotation]);
+      doc = fallback.doc;
+      if (fallback.preserved.length) preserved.push(annotation.text);
+      else if (fallback.ambiguous.length) ambiguous.push(annotation.text);
+      else dropped.push(annotation.text);
+    }
+
     const data = {
       id: pageId,
       status: 'current',
       title,
-      body: this.adfBodyEnvelope(content),
+      body: { representation: ConfluenceService.REPRESENTATION, value: JSON.stringify(doc) },
       version: { number: version + 1, message: '' },
     };
 
@@ -190,11 +249,163 @@ export class ConfluenceService {
       `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
       data,
     );
-    return this.mapV2Page(page);
+    const mapped = this.mapV2Page(page);
+    return annotations.length
+      ? { ...mapped, inlineComments: { preserved: preserved.length, dropped, ambiguous } }
+      : mapped;
   }
 
   async deletePage(pageId: string): Promise<void> {
     await this.client.delete(`${ConfluenceService.V2}/pages/${pageId}`);
+  }
+
+  /**
+   * Body ADF of a superseded page version. v2 has no historical-body endpoint.
+   * Returns null when that version cannot be read — Confluence trims and purges
+   * old versions, and one unreadable version must not abort a whole repair.
+   */
+  private async getHistoricalBody(pageId: string, version: number): Promise<any> {
+    try {
+      const page = await this.client.get<any>(`${ConfluenceService.V1}/content/${pageId}`, {
+        status: 'historical',
+        version,
+        expand: `body.${ConfluenceService.REPRESENTATION}`,
+      });
+      return this.parseAdfBody(page?.body);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * ponytail: cap the history walk. One unlocatable comment on a long-lived
+   * page would otherwise mean hundreds of sequential full-body fetches. Raise
+   * it, or fetch versions concurrently, if a real page needs deeper history.
+   */
+  private static readonly MAX_HISTORY_LOOKBACK = 50;
+
+  /** Explicit comment page size; the v2 default of 25 truncates silently. */
+  private static readonly COMMENT_PAGE_SIZE = 250;
+
+  /** Whether the last fetch of `pageId:kind` had a further page. */
+  private truncatedComments = new Map<string, boolean>();
+
+  /**
+   * Re-attach inline comments detached by an earlier page update.
+   *
+   * An inline comment anchors via an `annotation` mark in the page body, so any
+   * update that rebuilt the body from markdown stripped every marker and left
+   * the comments floating. This walks back through page history to find where
+   * each orphan was anchored, then re-marks that text in the current body.
+   *
+   * Only unambiguous matches are written. An anchor that now matches several
+   * places, or none, is reported untouched — silently re-attaching a reviewer's
+   * question to the wrong sentence is worse than leaving it detached.
+   *
+   * Text is never modified; this adds marks only.
+   */
+  async reattachInlineComments(
+    pageId: string,
+    dryRunArg?: boolean,
+  ): Promise<InlineCommentRepair> {
+    // Only a literal false writes. A client sending null/0/"" for an unset
+    // optional boolean must not trigger a live page write.
+    const dryRun = dryRunArg !== false;
+    const page = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+    );
+    const currentBody = this.parseAdfBody(page?.body);
+    if (!currentBody) throw new Error(`Page ${pageId} returned no ADF body — cannot re-attach comments.`);
+
+    const version = page?.version?.number ?? 1;
+    const allInline = await this.getComments(pageId, 'inline');
+    // Repairing from a truncated list would under-report and under-repair while
+    // the totals below looked authoritative — refuse rather than mislead.
+    if (this.truncatedComments.get(`${pageId}:inline`)) {
+      throw new Error(
+        `Page ${pageId} has more than ${ConfluenceService.COMMENT_PAGE_SIZE} inline comments. ` +
+          `This server does not follow comment pagination, so a repair would silently skip some. ` +
+          `Re-attach is refused; reading comments still works.`,
+      );
+    }
+    const inline = allInline.filter((c) => c.markerRef);
+    const anchored = new Set(collectAnnotations(currentBody).map((a) => a.id));
+    const orphans = inline.filter((c) => !anchored.has(c.markerRef!));
+    const oldest = Math.max(1, version - ConfluenceService.MAX_HISTORY_LOOKBACK);
+
+    const outcome: InlineCommentRepair = {
+      pageId,
+      version,
+      dryRun,
+      inlineComments: inline.length,
+      stillAnchored: inline.length - orphans.length,
+      reattached: [],
+      ambiguous: [],
+      lost: [],
+    };
+    if (orphans.length === 0) return outcome;
+
+    // Cache history lookups — several orphans usually detached in the same edit.
+    const history = new Map<number, any>();
+    const unreadable = new Set<number>();
+    const bodyAt = async (n: number) => {
+      if (!history.has(n)) history.set(n, await this.getHistoricalBody(pageId, n));
+      return history.get(n);
+    };
+
+    let doc = currentBody;
+    for (const comment of orphans) {
+      const markerRef = comment.markerRef!;
+      const entry = { commentId: comment.id, markerRef, anchorText: comment.anchoredText ?? '' };
+
+      let locator = null;
+      for (let n = version - 1; n >= oldest && !locator; n--) {
+        const body = await bodyAt(n);
+        if (!body) {
+          unreadable.add(n);
+          continue;
+        }
+        locator = locateAnnotation(body, markerRef);
+        if (locator) entry.anchorText = locator.text;
+      }
+      if (!locator) {
+        outcome.lost.push({
+          ...entry,
+          reason:
+            `no readable page version back to v${oldest} contains this marker` +
+            (unreadable.size ? ` (could not read v${[...unreadable].join(', v')})` : ''),
+        });
+        continue;
+      }
+
+      const applied = applyLocator(doc, locator, markerRef);
+      doc = applied.doc;
+      if (applied.status === 'exact') outcome.reattached.push(entry);
+      else if (applied.status === 'ambiguous')
+        outcome.ambiguous.push({ ...entry, reason: 'anchor text matches more than one place in the current page' });
+      else if (applied.status === 'unmatchable')
+        outcome.ambiguous.push({
+          ...entry,
+          reason: 'the anchored text still exists but is broken up by other formatting, so it cannot be matched as one unbroken run',
+        });
+      else outcome.lost.push({ ...entry, reason: 'the text this comment was anchored to no longer exists' });
+    }
+
+    if (unreadable.size) outcome.unreadableVersions = [...unreadable].sort((a, b) => b - a);
+    if (dryRun || outcome.reattached.length === 0) return outcome;
+
+    const updated = await this.client.put<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+      {
+        id: pageId,
+        status: 'current',
+        title: page.title,
+        body: { representation: ConfluenceService.REPRESENTATION, value: JSON.stringify(doc) },
+        version: { number: version + 1, message: 'Re-attach inline comments orphaned by an earlier update' },
+      },
+    );
+    outcome.newVersion = updated?.version?.number;
+    return outcome;
   }
 
   // ---------- Spaces ----------
@@ -421,8 +632,12 @@ export class ConfluenceService {
     const source = ConfluenceService.COMMENT_SOURCES[kind];
     const response = await this.client.get<any>(
       `${ConfluenceService.V2}/pages/${pageId}/${source.path}`,
-      { 'body-format': ConfluenceService.REPRESENTATION },
+      { 'body-format': ConfluenceService.REPRESENTATION, limit: ConfluenceService.COMMENT_PAGE_SIZE },
     );
+    // ponytail: single page. v2 defaults to 25, so the explicit limit covers any
+    // realistic page; follow `_links.next` if one ever exceeds it. Reads stay
+    // best-effort — only reattachInlineComments treats completeness as required.
+    this.truncatedComments.set(`${pageId}:${kind}`, Boolean(response?._links?.next));
     const map = this[source.map].bind(this);
     return (response?.results ?? []).map((comment: any) => map(comment));
   }

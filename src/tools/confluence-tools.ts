@@ -116,7 +116,11 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_update_page',
-    description: 'Update an existing Confluence page. The `content` field accepts Markdown — the server converts it to ADF and submits it via the v2 API. The returned `content` is the ADF JSON document.',
+    description:
+      'Update an existing Confluence page. The `content` field accepts Markdown — the server converts it to ADF and submits it via the v2 API. The returned `content` is the ADF JSON document. ' +
+      'IMPORTANT — inline comments: they anchor to specific page text, so rewriting a passage detaches any comment on it. This server re-anchors them for you, locating each comment by the table row or block it sat in and falling back to matching its text, but a comment whose text you reword or delete cannot be re-anchored and will end up floating. ' +
+      'The response carries `inlineComments: { preserved, dropped, ambiguous }` whenever the page had any. `dropped` = the anchored text no longer exists. `ambiguous` = the text now appears in more than one place, so the server refused to guess which one the comment belonged to. Both mean the comment is left detached, and you MUST surface both lists to the user rather than reporting the update as clean. ' +
+      'To minimise breakage, keep commented sentences intact where you can. If comments do come loose, `confluence_reattach_inline_comments` can repair them from page history.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -138,6 +142,29 @@ export const confluenceTools: ToolDefinition[] = [
         },
       },
       required: ['pageId', 'title', 'content', 'version'],
+    },
+  },
+  {
+    name: 'confluence_reattach_inline_comments',
+    description:
+      'Repair inline comments that were detached from a Confluence page by an earlier update. Inline comments anchor via markers inside the page body, so an update that rebuilt the body (e.g. from Markdown) strips them and the comments end up floating. This walks back through page history to find where each orphaned comment was anchored, then re-marks that text in the current body. Page text is never modified; this adds anchor markers only. Defaults to a dry run: call with dryRun=false to actually write. ' +
+      'Only unambiguous anchors are restored. Results are split into `reattached`, `ambiguous` (the anchor text now appears in more than one place, or still exists but is broken up by formatting so it cannot be matched as one unbroken run) and `lost` (the anchored text is gone). Anything not in `reattached` is left exactly as it was — the tool reports rather than guesses, because a wrong guess silently moves a reviewer question onto unrelated text. ' +
+      'History is searched back at most 50 versions; a comment orphaned earlier than that reports as `lost`. Versions Confluence has purged are skipped and listed in `unreadableVersions`.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID whose inline comments should be re-attached',
+        },
+        dryRun: {
+          type: 'boolean',
+          description:
+            'When true (the default) report what would be re-attached without writing. Set false to publish a new page version with the markers restored.',
+          default: true,
+        },
+      },
+      required: ['pageId'],
     },
   },
   {
@@ -281,7 +308,9 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_get_comments',
-    description: 'Get comments for a Confluence page. Returns both footer (page-level) and inline (text-anchored) comments by default. Each comment carries a `type` field ("footer" or "inline"); the `body` field is an ADF JSON document. Inline comments also include `anchoredText` (the highlighted page text the comment is attached to), `resolutionStatus` (e.g. "open", "resolved"), and `markerRef`.',
+    description:
+      'Get comments for a Confluence page. Returns both footer (page-level) and inline (text-anchored) comments by default. Each comment carries a `type` field ("footer" or "inline"); the `body` field is an ADF JSON document. Inline comments also include `anchoredText` (the highlighted page text the comment is attached to), `resolutionStatus` (e.g. "open", "resolved"), and `markerRef`. ' +
+      'Note `anchoredText` is truncated by Confluence at roughly 250 characters, so do not rely on it for exact text matching — `confluence_reattach_inline_comments` recovers the full anchor from page history instead.',
     inputSchema: {
       type: 'object',
       properties: {

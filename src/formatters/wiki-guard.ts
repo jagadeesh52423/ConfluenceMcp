@@ -20,7 +20,9 @@ const RULES: Array<{ pattern: RegExp; wiki: string; markdown: string }> = [
   { pattern: /\{code(:[^}]*)?\}/,                  wiki: '{code}...{code}',    markdown: '```lang ... ```' },
   { pattern: /\{noformat\}/,                       wiki: '{noformat}',         markdown: '``` ... ```' },
   { pattern: /\{(quote|panel|expand|section|column|color)(:[^}]*)?\}/, wiki: '{panel}/{quote}/{color:...}', markdown: 'plain markdown (blockquote, heading, or text)' },
-  { pattern: /\[[^\]|\n]*\|[^\]\n]+\]/,            wiki: '[text|url]',         markdown: '[text](url)' },
+  // Not followed by `(` — `[a|b](url)` is a valid markdown link whose text
+  // happens to contain a pipe, and rejecting it makes the field unwritable.
+  { pattern: /\[[^\]|\n]*\|[^\]\n]+\](?!\()/,       wiki: '[text|url]',         markdown: '[text](url)' },
   // ponytail: `*` runs only, at column 0. `##`/`###` are wiki nested ordered
   // lists AND markdown headings — ambiguous, so markdown wins and `#` is not
   // matched here at all. Leading whitespace excluded: indented `**` is bold.
@@ -56,6 +58,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   throws(() => assertMarkdown('see {code:java}x{code}'), /```/);
   throws(() => assertMarkdown('||Name||Age||\n|a|1|'), /Header/);
   throws(() => assertMarkdown('[docs|https://x.com]'), /\[text\]\(url\)/);
+  doesNotThrow(() => assertMarkdown('[either|or](https://x.com) is a real link'));
   throws(() => assertMarkdown('** nested bullet'), /nested list/);
   doesNotThrow(() => assertMarkdown('# Real markdown\n\n**bold** and [link](https://x.com)'));
   doesNotThrow(() => assertMarkdown('## What\n\n### Verification\n\n#### Tests added\n'));

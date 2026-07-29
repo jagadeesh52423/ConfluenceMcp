@@ -58,6 +58,7 @@ registry.registerAll({
   'confluence_get_page':           (a) => c.getPage(a),
   'confluence_create_page':        (a) => c.createPage(a),
   'confluence_update_page':        (a) => c.updatePage(a),
+  'confluence_reattach_inline_comments': (a) => c.reattachInlineComments(a),
   'confluence_get_spaces':         (a) => c.getSpaces(a),
   'confluence_get_pages_by_space': (a) => c.getPagesBySpace(a),
   'confluence_get_attachments':    (a) => c.getAttachments(a),

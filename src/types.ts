@@ -119,6 +119,35 @@ export interface ConfluenceComment {
   webuiLink?: string;
 }
 
+/** One inline comment considered by a re-attach run. */
+export interface InlineCommentAnchor {
+  commentId: string;
+  markerRef: string;
+  /** Text the comment was anchored to, taken from history when available. */
+  anchorText: string;
+  /** Why it could not be re-attached. Absent on successful re-attachment. */
+  reason?: string;
+}
+
+/** Outcome of ConfluenceService.reattachInlineComments. */
+export interface InlineCommentRepair {
+  pageId: string;
+  /** Page version inspected. */
+  version: number;
+  dryRun: boolean;
+  inlineComments: number;
+  stillAnchored: number;
+  reattached: InlineCommentAnchor[];
+  /** Anchor text now matches several places — caller must disambiguate. */
+  ambiguous: InlineCommentAnchor[];
+  /** Anchored text no longer exists; the comment stays detached. */
+  lost: InlineCommentAnchor[];
+  /** Version created by the repair. Absent on a dry run or a no-op. */
+  newVersion?: number;
+  /** History versions that could not be read (trimmed or purged by Confluence). */
+  unreadableVersions?: number[];
+}
+
 export interface BitbucketPRComment {
   id: number;
   content: string;

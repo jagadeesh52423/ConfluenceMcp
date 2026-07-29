@@ -78,7 +78,62 @@ export class ConfluenceHandlers extends BaseHandler {
     return this.handle(
       () => this.service.updatePage(pageId, title, content, version),
       { operation: 'Failed to update Confluence page', params: { 'Page ID': pageId, Title: title, Version: version }, tip: ERROR_TIPS.CONFLUENCE_PAGE_EDIT },
-      jsonResponse
+      (page) => {
+        // Inline comments re-anchor by matching their original text; a comment
+        // on text this edit reworded has nothing left to attach to, and one
+        // whose text now appears twice is left alone rather than guessed at.
+        const { dropped = [], ambiguous = [] } = page.inlineComments ?? {};
+        const detail = (label: string, items: string[]) =>
+          `${ICONS.WARNING} ${items.length} inline comment(s) ${label}:\n` +
+          items.map((t) => `  - ${JSON.stringify(t.slice(0, 80))}`).join('\n') +
+          `\nThey remain on the page but are no longer attached to any text.\n\n`;
+        const warning =
+          (dropped.length ? detail('lost their anchor because the text they covered changed', dropped) : '') +
+          (ambiguous.length
+            ? detail('could not be re-anchored because their text now appears in more than one place', ambiguous)
+            : '');
+        return successResponse(warning + JSON.stringify(page, null, 2));
+      }
+    );
+  }
+
+  async reattachInlineComments(args: { pageId: string; dryRun?: boolean }): Promise<ToolResponse> {
+    const { pageId } = args;
+    // Only a literal false writes — null/0/"" from a client must stay a dry run.
+    const dryRun = args.dryRun !== false;
+    return this.handle(
+      () => this.service.reattachInlineComments(pageId, dryRun),
+      {
+        operation: 'Failed to re-attach Confluence inline comments',
+        params: { 'Page ID': pageId, 'Dry Run': dryRun },
+        tip: ERROR_TIPS.CONFLUENCE_PAGE_EDIT,
+      },
+      (repair) => {
+        const lines: string[] = [
+          repair.dryRun
+            ? `${ICONS.WARNING} DRY RUN — nothing was written. Re-run with dryRun=false to apply.`
+            : repair.newVersion
+              ? `${ICONS.SUCCESS} Published v${repair.newVersion}.`
+              : `${ICONS.SUCCESS} Nothing to write — no anchor could be restored.`,
+          `Page ${repair.pageId} v${repair.version}: ${repair.inlineComments} inline comment(s), ${repair.stillAnchored} still anchored.`,
+        ];
+        const section = (icon: string, label: string, items: typeof repair.reattached) =>
+          items.length
+            ? [
+                '',
+                `${icon} ${label} (${items.length}):`,
+                ...items.map(
+                  (a) => `  - ${JSON.stringify(a.anchorText.slice(0, 80))}${a.reason ? ` — ${a.reason}` : ''}`,
+                ),
+              ]
+            : [];
+        lines.push(
+          ...section(ICONS.SUCCESS, repair.dryRun ? 'Would re-attach' : 'Re-attached', repair.reattached),
+          ...section(ICONS.SUGGESTION, 'Ambiguous, left detached', repair.ambiguous),
+          ...section(ICONS.WARNING, 'Anchor text gone, left detached', repair.lost),
+        );
+        return successResponse(`${lines.join('\n')}\n\n${JSON.stringify(repair, null, 2)}`);
+      },
     );
   }
 

@@ -67,6 +67,7 @@ export const ERROR_MESSAGES = {
 export const ICONS = {
   SUCCESS: '✅',
   ERROR: '❌',
+  WARNING: '⚠️',
   SUGGESTION: '💡',
   TICKET: '🎫',
   SUMMARY: '📝',
