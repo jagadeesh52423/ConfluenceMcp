@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { bitbucketConfig, getBitbucketAuth } from '../config.js';
 import { BitbucketRepository, BitbucketPRComment, SearchOptions } from '../types.js';
+import { assertMarkdown } from '../formatters/index.js';
 
 export class BitbucketService {
   private client: AxiosInstance;
@@ -157,6 +158,7 @@ export class BitbucketService {
     destinationBranch: string = 'main',
     description: string = ''
   ): Promise<any> {
+    assertMarkdown(description, 'description');
     const data = {
       title,
       description,
@@ -182,6 +184,7 @@ export class BitbucketService {
       data.title = updates.title;
     }
     if (updates.description !== undefined) {
+      assertMarkdown(updates.description, 'description');
       data.description = updates.description;
     }
     if (updates.destinationBranch !== undefined) {
@@ -251,6 +254,7 @@ export class BitbucketService {
     content: string = '',
     kind: string = 'bug'
   ): Promise<any> {
+    assertMarkdown(content, 'content');
     const data = {
       title,
       content: { raw: content },
@@ -277,6 +281,7 @@ export class BitbucketService {
     inline?: { path: string; from?: number; to?: number },
     parentId?: number
   ): Promise<BitbucketPRComment> {
+    assertMarkdown(content, 'content');
     const data: any = { content: { raw: content } };
     if (inline) {
       data.inline = inline;
@@ -297,6 +302,7 @@ export class BitbucketService {
     commentId: number,
     content: string
   ): Promise<BitbucketPRComment> {
+    assertMarkdown(content, 'content');
     const response = await this.client.put(
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`,
       { content: { raw: content } }

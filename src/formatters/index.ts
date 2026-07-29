@@ -5,3 +5,4 @@
  */
 export { markdownToADF } from './markdown-to-adf.js';
 export { extractTextFromADF } from './adf-to-text.js';
+export { assertMarkdown } from './wiki-guard.js';
