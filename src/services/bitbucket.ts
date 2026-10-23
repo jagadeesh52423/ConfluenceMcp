@@ -223,12 +223,117 @@ export class BitbucketService {
     return response.data.values;
   }
 
-  async getFileContent(repoName: string, filePath: string, branch: string = 'main'): Promise<string> {
+  async getFileContent(repoName: string, filePath: string, ref?: string, maxBytes: number = 200 * 1024): Promise<any> {
+    if (!ref) {
+      const repo = await this.client.get(`/repositories/${this.workspace}/${repoName}`);
+      ref = repo.data.mainbranch?.name || 'main';
+    }
     const response = await this.client.get(
-      `/repositories/${this.workspace}/${repoName}/src/${branch}/${filePath}`,
-      { responseType: 'text' }
+      `/repositories/${this.workspace}/${repoName}/src/${encodeURIComponent(ref!)}/${filePath}`,
+      { responseType: 'arraybuffer' }
     );
-    return response.data;
+    const buf = Buffer.from(response.data);
+    const base = { path: filePath, ref, size: buf.length };
+    if (buf.subarray(0, 8192).includes(0)) return { ...base, binary: true, content: null };
+    const truncated = buf.length > maxBytes;
+    return { ...base, truncated, content: buf.subarray(0, maxBytes).toString('utf8') };
+  }
+
+  async getPRDiffstat(repoName: string, prId: number): Promise<any> {
+    const maxPages = 10; // ponytail: cap so huge PRs can't loop forever; truncated flag signals it
+    let url: string | undefined = `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/diffstat`;
+    let params: any = { pagelen: 100 };
+    const files: any[] = [];
+    let page = 0;
+    while (url && page < maxPages) {
+      const response: any = await this.client.get(url, { params });
+      for (const f of response.data.values) {
+        files.push({
+          path: f.new?.path ?? f.old?.path,
+          status: f.status,
+          lines_added: f.lines_added,
+          lines_removed: f.lines_removed,
+        });
+      }
+      url = response.data.next;
+      params = undefined; // `next` is a full URL carrying its own query
+      page++;
+    }
+    return { files, count: files.length, truncated: !!url };
+  }
+
+  async getPRStatuses(repoName: string, prId: number): Promise<any> {
+    const response = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/statuses`,
+      { params: { pagelen: 50 } } // ponytail: first page only; PRs rarely have >50 statuses
+    );
+    const statuses = response.data.values.map((s: any) => ({
+      key: s.key, name: s.name, state: s.state, url: s.url, updated_on: s.updated_on,
+    }));
+    const counts: Record<string, number> = {};
+    for (const s of statuses) counts[s.state] = (counts[s.state] || 0) + 1;
+    return {
+      allSuccessful: statuses.length > 0 && statuses.every((s: any) => s.state === 'SUCCESSFUL'),
+      counts,
+      statuses,
+    };
+  }
+
+  async getPipelines(repoName: string, branch?: string, limit: number = 10): Promise<any[]> {
+    const params: any = { pagelen: Math.min(limit, 100), sort: '-created_on' }; // API max pagelen
+    if (branch) params['target.branch'] = branch;
+    const response = await this.client.get(`/repositories/${this.workspace}/${repoName}/pipelines/`, { params });
+    return response.data.values.map((p: any) => ({
+      uuid: p.uuid,
+      build_number: p.build_number,
+      state: p.state?.name,
+      result: p.state?.result?.name ?? null,
+      target: p.target?.ref_name,
+      created_on: p.created_on,
+      duration_in_seconds: p.duration_in_seconds ?? null,
+    }));
+  }
+
+  async getPipelineSteps(repoName: string, pipelineUuid: string): Promise<any[]> {
+    const response = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pipelines/${encodeURIComponent(pipelineUuid)}/steps/`,
+      { params: { pagelen: 100 } }
+    );
+    return response.data.values.map((s: any) => ({
+      uuid: s.uuid,
+      name: s.name,
+      state: s.state?.name,
+      result: s.state?.result?.name ?? null,
+      started_on: s.started_on,
+      completed_on: s.completed_on,
+      duration_in_seconds: s.duration_in_seconds ?? null,
+    }));
+  }
+
+  async getPipelineStepLog(repoName: string, pipelineUuid: string, stepUuid: string, maxBytes: number = 200 * 1024): Promise<any> {
+    const response = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pipelines/${encodeURIComponent(pipelineUuid)}/steps/${encodeURIComponent(stepUuid)}/log`,
+      {
+        responseType: 'arraybuffer',
+        headers: { Range: `bytes=-${maxBytes}` }, // tail: failures are at the end
+        validateStatus: (s) => (s >= 200 && s < 300) || s === 416, // 416 = empty log
+      }
+    );
+    if (response.status === 416) return { truncated: false, log: '' };
+    const buf = Buffer.from(response.data);
+    // 206 is returned even when the whole log fits; only a non-zero start offset means we cut the head
+    const rangeStart = Number(/bytes (\d+)-/.exec(response.headers['content-range'] ?? '')?.[1] ?? 0);
+    const truncated = rangeStart > 0 || buf.length > maxBytes;
+    return { truncated, log: buf.subarray(Math.max(0, buf.length - maxBytes)).toString('utf8') };
+  }
+
+  async getPRFileDiff(repoName: string, prId: number, path: string, maxBytes: number = 200 * 1024): Promise<any> {
+    const response = await this.client.get(
+      `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/diff`,
+      { params: { path }, responseType: 'text' }
+    );
+    const diff: string = response.data;
+    return { path, truncated: diff.length > maxBytes, diff: diff.slice(0, maxBytes) };
   }
 
   async createFile(

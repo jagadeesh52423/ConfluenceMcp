@@ -75,6 +75,69 @@ export class BitbucketHandlers extends BaseHandler {
     );
   }
 
+  async getPRDiffstat(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.getPRDiffstat(repoName, prId),
+      { operation: 'Failed to get PR diffstat', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getPRFileDiff(args: { repoName: string; prId: number; path: string }): Promise<ToolResponse> {
+    const { repoName, prId, path } = args;
+    return this.handle(
+      () => this.service.getPRFileDiff(repoName, prId, path),
+      { operation: 'Failed to get PR file diff', params: { Repository: repoName, 'PR ID': prId, Path: path }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getFileContent(args: { repoName: string; path: string; ref?: string }): Promise<ToolResponse> {
+    const { repoName, path, ref } = args;
+    return this.handle(
+      () => this.service.getFileContent(repoName, path, ref),
+      { operation: 'Failed to get file content', params: { Repository: repoName, Path: path, Ref: ref || 'default branch' }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getPRStatuses(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.getPRStatuses(repoName, prId),
+      { operation: 'Failed to get PR statuses', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getPipelines(args: { repoName: string; branch?: string; limit?: number }): Promise<ToolResponse> {
+    const { repoName, branch, limit } = args;
+    return this.handle(
+      () => this.service.getPipelines(repoName, branch, limit),
+      { operation: 'Failed to get pipelines', params: { Repository: repoName, Branch: branch || 'any', Limit: limit || 10 }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getPipelineSteps(args: { repoName: string; pipelineUuid: string }): Promise<ToolResponse> {
+    const { repoName, pipelineUuid } = args;
+    return this.handle(
+      () => this.service.getPipelineSteps(repoName, pipelineUuid),
+      { operation: 'Failed to get pipeline steps', params: { Repository: repoName, Pipeline: pipelineUuid }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async getPipelineStepLog(args: { repoName: string; pipelineUuid: string; stepUuid: string }): Promise<ToolResponse> {
+    const { repoName, pipelineUuid, stepUuid } = args;
+    return this.handle(
+      () => this.service.getPipelineStepLog(repoName, pipelineUuid, stepUuid),
+      { operation: 'Failed to get pipeline step log', params: { Repository: repoName, Pipeline: pipelineUuid, Step: stepUuid }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
   async createPullRequest(args: {
     repoName: string;
     title: string;

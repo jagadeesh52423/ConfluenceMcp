@@ -289,6 +289,148 @@ export const bitbucketTools: ToolDefinition[] = [
     },
   },
   {
+    name: 'bitbucket_get_pr_diffstat',
+    description: 'Get per-file change summary for a pull request: path, status, lines_added, lines_removed (follows pagination, up to 1000 files)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_get_pr_file_diff',
+    description: 'Get the diff of a single file in a pull request (use bitbucket_get_pr_diffstat to list files). Output capped at 200KB.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        path: {
+          type: 'string',
+          description: 'File path within the repository',
+        },
+      },
+      required: ['repoName', 'prId', 'path'],
+    },
+  },
+  {
+    name: 'bitbucket_get_file_content',
+    description: 'Get file content from a repository at a branch or commit. Defaults to the repo main branch. Text output capped at 200KB; binary files return metadata only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        path: {
+          type: 'string',
+          description: 'File path within the repository',
+        },
+        ref: {
+          type: 'string',
+          description: 'Branch name or commit hash (default: repo main branch)',
+        },
+      },
+      required: ['repoName', 'path'],
+    },
+  },
+  {
+    name: 'bitbucket_get_pr_statuses',
+    description: 'Get CI/build statuses for a pull request (key, name, state, url, updated_on) with a summary: allSuccessful and counts by state',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_get_pipelines',
+    description: 'List recent Bitbucket Pipelines runs, newest first, optionally filtered by branch',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        branch: {
+          type: 'string',
+          description: 'Only pipelines targeting this branch',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of pipelines (default: 10)',
+        },
+      },
+      required: ['repoName'],
+    },
+  },
+  {
+    name: 'bitbucket_get_pipeline_steps',
+    description: 'Get per-step status of a pipeline run',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        pipelineUuid: {
+          type: 'string',
+          description: 'Pipeline UUID (from bitbucket_get_pipelines, braces included)',
+        },
+      },
+      required: ['repoName', 'pipelineUuid'],
+    },
+  },
+  {
+    name: 'bitbucket_get_pipeline_step_log',
+    description: 'Get the log of a pipeline step (last 200KB, since failures are at the end)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        pipelineUuid: {
+          type: 'string',
+          description: 'Pipeline UUID (from bitbucket_get_pipelines, braces included)',
+        },
+        stepUuid: {
+          type: 'string',
+          description: 'Step UUID (from bitbucket_get_pipeline_steps, braces included)',
+        },
+      },
+      required: ['repoName', 'pipelineUuid', 'stepUuid'],
+    },
+  },
+  {
     name: 'bitbucket_get_pr_comments',
     description: 'Get all comments for a Bitbucket pull request',
     inputSchema: {
