@@ -142,13 +142,22 @@ export const bitbucketTools: ToolDefinition[] = [
           type: 'boolean',
           description: 'Create the PR as a draft (default: false)',
         },
+        reviewers: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Reviewers: account IDs, or UUIDs wrapped in braces, e.g. {1234-...}',
+        },
+        closeSourceBranch: {
+          type: 'boolean',
+          description: 'Close the source branch when the PR is merged (default: false)',
+        },
       },
       required: ['repoName', 'title', 'sourceBranch'],
     },
   },
   {
     name: 'bitbucket_update_pull_request',
-    description: 'Update an existing pull request (title, description, destination branch, or draft state). At least one of title, description, destinationBranch, or draft must be provided.',
+    description: 'Update an existing pull request (title, description, destination branch, draft state, or reviewers). At least one of title, description, destinationBranch, draft, or reviewers must be provided.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -175,6 +184,11 @@ export const bitbucketTools: ToolDefinition[] = [
         draft: {
           type: 'boolean',
           description: 'Set draft state; false marks a draft PR ready for review',
+        },
+        reviewers: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Reviewers (account IDs, or UUIDs wrapped in braces). REPLACES the entire reviewer list; pass [] to clear',
         },
       },
       required: ['repoName', 'prId'],
@@ -420,6 +434,127 @@ export const bitbucketTools: ToolDefinition[] = [
         },
       },
       required: ['repoName', 'prId', 'commentId'],
+    },
+  },
+  {
+    name: 'bitbucket_approve_pr',
+    description: 'Approve a Bitbucket pull request as the authenticated user',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_unapprove_pr',
+    description: 'Remove your approval from a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_request_changes_pr',
+    description: 'Request changes on a Bitbucket pull request as the authenticated user',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_remove_change_request_pr',
+    description: 'Remove your change request from a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_merge_pr',
+    description: 'Merge a Bitbucket pull request. Returns id, state and merge commit hash; for long-running merges returns a task status URL.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+        mergeStrategy: {
+          type: 'string',
+          enum: ['merge_commit', 'squash', 'fast_forward', 'squash_fast_forward', 'rebase_fast_forward', 'rebase_merge'],
+          description: 'Merge strategy (default: repository default)',
+        },
+        message: {
+          type: 'string',
+          description: 'Merge commit message',
+        },
+        closeSourceBranch: {
+          type: 'boolean',
+          description: 'Close the source branch after merging',
+        },
+      },
+      required: ['repoName', 'prId'],
+    },
+  },
+  {
+    name: 'bitbucket_decline_pr',
+    description: 'Decline a Bitbucket pull request',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        repoName: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        prId: {
+          type: 'number',
+          description: 'Pull request ID',
+        },
+      },
+      required: ['repoName', 'prId'],
     },
   },
 ];

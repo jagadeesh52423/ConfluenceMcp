@@ -76,6 +76,11 @@ export function applyBitbucketSnapshots(
       entityType: 'pr-comment-resolve',
       extractEntityId: (repoName: string, prId: number, commentId: number) => String(commentId),
     },
+    ...Object.fromEntries(['approvePR', 'unapprovePR', 'requestChangesPR', 'removeChangeRequestPR', 'mergePR', 'declinePR'].map(name => [name, {
+      operationType: 'update' as const,
+      entityType: 'pr-review',
+      extractEntityId: (repoName: string, prId: number) => `${repoName}/${prId}`,
+    }])),
   };
 
   return createSnapshotProxy(service, manager, 'bitbucket', methodConfigs);

@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/@jagadeesh52423%2Fatlassian-mcp-server.svg)](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 86 tools covering deep CRUD across all three products.
+An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 92 tools covering deep CRUD across all three products.
 
 ## What It Does
 
@@ -13,7 +13,7 @@ This server acts as a bridge between any MCP-compatible AI client (Claude Deskto
 
 - **Confluence** (20 tools) -- Search, create, read, update, and delete pages. Manage spaces, child pages, comments (full CRUD), attachments, labels, and version history. Input accepts Markdown (auto-converted to ADF); output is native ADF JSON.
 - **Jira** (49 tools) -- Full issue lifecycle: search, CRUD, comments, transitions, attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints (incl. moving issues into a sprint), versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
-- **Bitbucket** (17 tools) -- Repository management, branches, commits, pull requests (create/update/list), PR comments with resolve/unresolve, and issue tracking.
+- **Bitbucket** (23 tools) -- Repository management, branches, commits, pull requests (create/update/list, reviewers, approve/request changes, merge/decline), PR comments with resolve/unresolve, and issue tracking.
 - **Smart Field Handling** -- AI-driven field suggestions during Jira transitions. Analyzes issue context to auto-suggest values for required fields (e.g., DB scripts, test cases), reducing manual input.
 - **Snapshot Safety Net** -- Automatic local snapshots of mutating operations (create/update/delete) with configurable retention, so you can recover from accidental changes.
 
@@ -218,7 +218,7 @@ Add one of the following to your Claude Desktop config:
 
 All Jira tools are prefixed with `jira_`.
 
-### Bitbucket (17 tools)
+### Bitbucket (23 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -239,6 +239,12 @@ All Jira tools are prefixed with `jira_`.
 | `bitbucket_delete_pr_comment` | Delete a PR comment |
 | `bitbucket_resolve_pr_comment` | Mark a PR comment thread as resolved |
 | `bitbucket_unresolve_pr_comment` | Reopen (unresolve) a PR comment thread |
+| `bitbucket_approve_pr` | Approve a pull request |
+| `bitbucket_unapprove_pr` | Remove your approval from a pull request |
+| `bitbucket_request_changes_pr` | Request changes on a pull request |
+| `bitbucket_remove_change_request_pr` | Remove your change request from a pull request |
+| `bitbucket_merge_pr` | Merge a pull request (optional strategy, message, close source branch) |
+| `bitbucket_decline_pr` | Decline a pull request |
 
 ### PR comment resolution (v1.3.0+)
 

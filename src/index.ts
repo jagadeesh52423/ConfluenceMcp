@@ -167,6 +167,12 @@ registry.registerAll({
   'bitbucket_delete_pr_comment':     (a) => b.deletePRComment(a),
   'bitbucket_resolve_pr_comment':    (a) => b.resolvePRComment(a),
   'bitbucket_unresolve_pr_comment':  (a) => b.unresolvePRComment(a),
+  'bitbucket_approve_pr':            (a) => b.approvePR(a),
+  'bitbucket_unapprove_pr':          (a) => b.unapprovePR(a),
+  'bitbucket_request_changes_pr':    (a) => b.requestChangesPR(a),
+  'bitbucket_remove_change_request_pr': (a) => b.removeChangeRequestPR(a),
+  'bitbucket_merge_pr':              (a) => b.mergePR(a),
+  'bitbucket_decline_pr':            (a) => b.declinePR(a),
 });
 
 /**

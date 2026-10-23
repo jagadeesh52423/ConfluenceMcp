@@ -157,7 +157,9 @@ export class BitbucketService {
     sourceBranch: string,
     destinationBranch: string = 'main',
     description: string = '',
-    draft?: boolean
+    draft?: boolean,
+    reviewers?: string[],
+    closeSourceBranch?: boolean
   ): Promise<any> {
     assertMarkdown(description, 'description');
     const data: any = {
@@ -173,6 +175,12 @@ export class BitbucketService {
     if (draft !== undefined) {
       data.draft = draft;
     }
+    if (reviewers !== undefined) {
+      data.reviewers = BitbucketService.mapReviewers(reviewers);
+    }
+    if (closeSourceBranch !== undefined) {
+      data.close_source_branch = closeSourceBranch;
+    }
 
     const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests`, data);
     return response.data;
@@ -181,7 +189,7 @@ export class BitbucketService {
   async updatePullRequest(
     repoName: string,
     prId: number,
-    updates: { title?: string; description?: string; destinationBranch?: string; draft?: boolean }
+    updates: { title?: string; description?: string; destinationBranch?: string; draft?: boolean; reviewers?: string[] }
   ): Promise<any> {
     const data: any = {};
     if (updates.title !== undefined) {
@@ -196,6 +204,9 @@ export class BitbucketService {
     }
     if (updates.draft !== undefined) {
       data.draft = updates.draft;
+    }
+    if (updates.reviewers !== undefined) {
+      data.reviewers = BitbucketService.mapReviewers(updates.reviewers);
     }
 
     const response = await this.client.put(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}`, data);
@@ -342,5 +353,65 @@ export class BitbucketService {
       `/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/comments/${commentId}`
     );
     return BitbucketService.mapComment(getResponse.data);
+  }
+
+  // Bitbucket identifies reviewers by {uuid} (braced) or by account_id.
+  private static mapReviewers(reviewers: string[]): Array<{ uuid: string } | { account_id: string }> {
+    return reviewers.map(r => (r.startsWith('{') ? { uuid: r } : { account_id: r }));
+  }
+
+  private static mapPullRequestResult(response: any) {
+    const pr = response.data;
+    return {
+      id: pr?.id,
+      state: pr?.state,
+      merge_commit: pr?.merge_commit?.hash,
+      ...(response.status === 202 && { taskStatusUrl: response.headers?.location, note: 'Merge accepted and still in progress' }),
+    };
+  }
+
+  async mergePR(
+    repoName: string,
+    prId: number,
+    options: { mergeStrategy?: string; message?: string; closeSourceBranch?: boolean } = {}
+  ) {
+    const data: any = {};
+    if (options.mergeStrategy !== undefined) data.merge_strategy = options.mergeStrategy;
+    if (options.message !== undefined) {
+      assertMarkdown(options.message, 'message');
+      data.message = options.message;
+    }
+    if (options.closeSourceBranch !== undefined) data.close_source_branch = options.closeSourceBranch;
+    const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/merge`, data);
+    return BitbucketService.mapPullRequestResult(response);
+  }
+
+  async declinePR(repoName: string, prId: number) {
+    const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/decline`, {});
+    return BitbucketService.mapPullRequestResult(response);
+  }
+
+  private static mapParticipant(data: any): { approved: boolean; state: string | null; user?: string } {
+    return { approved: data?.approved ?? false, state: data?.state ?? null, user: data?.user?.display_name };
+  }
+
+  async approvePR(repoName: string, prId: number) {
+    const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/approve`, {});
+    return BitbucketService.mapParticipant(response.data);
+  }
+
+  async unapprovePR(repoName: string, prId: number) {
+    await this.client.delete(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/approve`);
+    return BitbucketService.mapParticipant(undefined);
+  }
+
+  async requestChangesPR(repoName: string, prId: number) {
+    const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/request-changes`, {});
+    return BitbucketService.mapParticipant(response.data);
+  }
+
+  async removeChangeRequestPR(repoName: string, prId: number) {
+    await this.client.delete(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}/request-changes`);
+    return BitbucketService.mapParticipant(undefined);
   }
 }

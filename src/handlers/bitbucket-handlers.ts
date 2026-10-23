@@ -82,10 +82,12 @@ export class BitbucketHandlers extends BaseHandler {
     destinationBranch?: string;
     description?: string;
     draft?: boolean;
+    reviewers?: string[];
+    closeSourceBranch?: boolean;
   }): Promise<ToolResponse> {
-    const { repoName, title, sourceBranch, destinationBranch, description, draft } = args;
+    const { repoName, title, sourceBranch, destinationBranch, description, draft, reviewers, closeSourceBranch } = args;
     return this.handle(
-      () => this.service.createPullRequest(repoName, title, sourceBranch, destinationBranch, description, draft),
+      () => this.service.createPullRequest(repoName, title, sourceBranch, destinationBranch, description, draft, reviewers, closeSourceBranch),
       {
         operation: 'Failed to create pull request',
         params: { Repository: repoName, Title: title, 'Source Branch': sourceBranch, 'Destination Branch': destinationBranch || 'main' },
@@ -102,19 +104,21 @@ export class BitbucketHandlers extends BaseHandler {
     description?: string;
     destinationBranch?: string;
     draft?: boolean;
+    reviewers?: string[];
   }): Promise<ToolResponse> {
-    const { repoName, prId, title, description, destinationBranch, draft } = args;
+    const { repoName, prId, title, description, destinationBranch, draft, reviewers } = args;
     const updateParams: Record<string, any> = {};
     if (title !== undefined) updateParams.Title = title;
     if (description !== undefined) updateParams.Description = description;
     if (destinationBranch !== undefined) updateParams['Destination Branch'] = destinationBranch;
     if (draft !== undefined) updateParams.Draft = draft;
+    if (reviewers !== undefined) updateParams.Reviewers = reviewers.join(', ');
     return this.handle(
       () => {
-        if (title === undefined && description === undefined && destinationBranch === undefined && draft === undefined) {
-          throw new Error('At least one of title, description, destinationBranch, or draft must be provided');
+        if (title === undefined && description === undefined && destinationBranch === undefined && draft === undefined && reviewers === undefined) {
+          throw new Error('At least one of title, description, destinationBranch, draft, or reviewers must be provided');
         }
-        return this.service.updatePullRequest(repoName, prId, { title, description, destinationBranch, draft });
+        return this.service.updatePullRequest(repoName, prId, { title, description, destinationBranch, draft, reviewers });
       },
       {
         operation: 'Failed to update pull request',
@@ -242,6 +246,66 @@ export class BitbucketHandlers extends BaseHandler {
     return this.handle(
       () => this.service.unresolvePRComment(repoName, prId, commentId),
       { operation: 'Failed to unresolve PR comment', params: { Repository: repoName, 'PR ID': prId, 'Comment ID': commentId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async approvePR(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.approvePR(repoName, prId),
+      { operation: 'Failed to approve PR', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async unapprovePR(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.unapprovePR(repoName, prId),
+      { operation: 'Failed to remove approval from PR', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async requestChangesPR(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.requestChangesPR(repoName, prId),
+      { operation: 'Failed to request changes on PR', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async removeChangeRequestPR(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.removeChangeRequestPR(repoName, prId),
+      { operation: 'Failed to remove change request from PR', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async mergePR(args: {
+    repoName: string;
+    prId: number;
+    mergeStrategy?: string;
+    message?: string;
+    closeSourceBranch?: boolean;
+  }): Promise<ToolResponse> {
+    const { repoName, prId, mergeStrategy, message, closeSourceBranch } = args;
+    return this.handle(
+      () => this.service.mergePR(repoName, prId, { mergeStrategy, message, closeSourceBranch }),
+      { operation: 'Failed to merge PR', params: { Repository: repoName, 'PR ID': prId, 'Merge Strategy': mergeStrategy }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
+      jsonResponse
+    );
+  }
+
+  async declinePR(args: { repoName: string; prId: number }): Promise<ToolResponse> {
+    const { repoName, prId } = args;
+    return this.handle(
+      () => this.service.declinePR(repoName, prId),
+      { operation: 'Failed to decline PR', params: { Repository: repoName, 'PR ID': prId }, tip: ERROR_TIPS.BITBUCKET_REPO_VIEW },
       jsonResponse
     );
   }
