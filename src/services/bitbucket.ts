@@ -156,10 +156,11 @@ export class BitbucketService {
     title: string,
     sourceBranch: string,
     destinationBranch: string = 'main',
-    description: string = ''
+    description: string = '',
+    draft?: boolean
   ): Promise<any> {
     assertMarkdown(description, 'description');
-    const data = {
+    const data: any = {
       title,
       description,
       source: {
@@ -169,6 +170,9 @@ export class BitbucketService {
         branch: { name: destinationBranch }
       }
     };
+    if (draft !== undefined) {
+      data.draft = draft;
+    }
 
     const response = await this.client.post(`/repositories/${this.workspace}/${repoName}/pullrequests`, data);
     return response.data;
@@ -177,7 +181,7 @@ export class BitbucketService {
   async updatePullRequest(
     repoName: string,
     prId: number,
-    updates: { title?: string; description?: string; destinationBranch?: string }
+    updates: { title?: string; description?: string; destinationBranch?: string; draft?: boolean }
   ): Promise<any> {
     const data: any = {};
     if (updates.title !== undefined) {
@@ -189,6 +193,9 @@ export class BitbucketService {
     }
     if (updates.destinationBranch !== undefined) {
       data.destination = { branch: { name: updates.destinationBranch } };
+    }
+    if (updates.draft !== undefined) {
+      data.draft = updates.draft;
     }
 
     const response = await this.client.put(`/repositories/${this.workspace}/${repoName}/pullrequests/${prId}`, data);

@@ -81,10 +81,11 @@ export class BitbucketHandlers extends BaseHandler {
     sourceBranch: string;
     destinationBranch?: string;
     description?: string;
+    draft?: boolean;
   }): Promise<ToolResponse> {
-    const { repoName, title, sourceBranch, destinationBranch, description } = args;
+    const { repoName, title, sourceBranch, destinationBranch, description, draft } = args;
     return this.handle(
-      () => this.service.createPullRequest(repoName, title, sourceBranch, destinationBranch, description),
+      () => this.service.createPullRequest(repoName, title, sourceBranch, destinationBranch, description, draft),
       {
         operation: 'Failed to create pull request',
         params: { Repository: repoName, Title: title, 'Source Branch': sourceBranch, 'Destination Branch': destinationBranch || 'main' },
@@ -100,18 +101,20 @@ export class BitbucketHandlers extends BaseHandler {
     title?: string;
     description?: string;
     destinationBranch?: string;
+    draft?: boolean;
   }): Promise<ToolResponse> {
-    const { repoName, prId, title, description, destinationBranch } = args;
+    const { repoName, prId, title, description, destinationBranch, draft } = args;
     const updateParams: Record<string, any> = {};
     if (title !== undefined) updateParams.Title = title;
     if (description !== undefined) updateParams.Description = description;
     if (destinationBranch !== undefined) updateParams['Destination Branch'] = destinationBranch;
+    if (draft !== undefined) updateParams.Draft = draft;
     return this.handle(
       () => {
-        if (title === undefined && description === undefined && destinationBranch === undefined) {
-          throw new Error('At least one of title, description, or destinationBranch must be provided');
+        if (title === undefined && description === undefined && destinationBranch === undefined && draft === undefined) {
+          throw new Error('At least one of title, description, destinationBranch, or draft must be provided');
         }
-        return this.service.updatePullRequest(repoName, prId, { title, description, destinationBranch });
+        return this.service.updatePullRequest(repoName, prId, { title, description, destinationBranch, draft });
       },
       {
         operation: 'Failed to update pull request',

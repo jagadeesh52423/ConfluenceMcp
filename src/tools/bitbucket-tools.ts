@@ -138,13 +138,17 @@ export const bitbucketTools: ToolDefinition[] = [
           type: 'string',
           description: 'Pull request description',
         },
+        draft: {
+          type: 'boolean',
+          description: 'Create the PR as a draft (default: false)',
+        },
       },
       required: ['repoName', 'title', 'sourceBranch'],
     },
   },
   {
     name: 'bitbucket_update_pull_request',
-    description: 'Update an existing pull request (title, description, or destination branch). At least one of title, description, or destinationBranch must be provided.',
+    description: 'Update an existing pull request (title, description, destination branch, or draft state). At least one of title, description, destinationBranch, or draft must be provided.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -167,6 +171,10 @@ export const bitbucketTools: ToolDefinition[] = [
         destinationBranch: {
           type: 'string',
           description: 'New destination branch name',
+        },
+        draft: {
+          type: 'boolean',
+          description: 'Set draft state; false marks a draft PR ready for review',
         },
       },
       required: ['repoName', 'prId'],
