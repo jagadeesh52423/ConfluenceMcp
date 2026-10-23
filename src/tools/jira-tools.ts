@@ -259,7 +259,7 @@ export const jiraTools: ToolDefinition[] = [
   },
   {
     name: 'jira_transition_issue',
-    description: 'Transition a Jira issue to a different status with smart field handling',
+    description: 'Transition a Jira issue to a different status with smart field handling; optionally add a comment in the same call',
     inputSchema: {
       type: 'object',
       properties: {
@@ -274,6 +274,10 @@ export const jiraTools: ToolDefinition[] = [
         fieldValues: {
           type: 'object',
           description: 'Optional field values for the transition',
+        },
+        comment: {
+          type: 'string',
+          description: 'Optional Markdown comment added with the transition (also satisfies workflow validators that require a comment)',
         },
       },
       required: ['issueKey', 'transitionId'],
@@ -281,7 +285,7 @@ export const jiraTools: ToolDefinition[] = [
   },
   {
     name: 'jira_transition_issue_interactive',
-    description: 'Transition a Jira issue with automatic field suggestion and validation',
+    description: 'Transition a Jira issue with automatic field suggestion and validation; optionally add a comment in the same call',
     inputSchema: {
       type: 'object',
       properties: {
@@ -296,6 +300,10 @@ export const jiraTools: ToolDefinition[] = [
         fieldValues: {
           type: 'object',
           description: 'Optional field values for the transition',
+        },
+        comment: {
+          type: 'string',
+          description: 'Optional Markdown comment added with the transition (also satisfies workflow validators that require a comment)',
         },
       },
       required: ['issueKey', 'transitionId'],

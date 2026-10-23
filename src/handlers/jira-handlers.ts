@@ -221,13 +221,14 @@ export class JiraHandlers extends BaseHandler {
     issueKey: string;
     transitionId: string;
     fieldValues?: Record<string, any>;
+    comment?: string;
   }): Promise<ToolResponse> {
-    const { issueKey, transitionId, fieldValues } = args;
+    const { issueKey, transitionId, fieldValues, comment } = args;
     return this.handle(
-      () => this.service.transitionIssue(issueKey, transitionId, fieldValues),
+      () => this.service.transitionIssue(issueKey, transitionId, fieldValues, comment),
       {
         operation: `Failed to transition Jira issue ${issueKey}`,
-        params: { 'Transition ID': transitionId, 'Field Values': JSON.stringify(fieldValues || {}, null, 2) },
+        params: { 'Transition ID': transitionId, 'Field Values': JSON.stringify(fieldValues || {}, null, 2), Comment: comment },
         tip: ERROR_TIPS.JIRA_TRANSITION,
       },
       (result) => {
@@ -258,13 +259,14 @@ export class JiraHandlers extends BaseHandler {
     issueKey: string;
     transitionId: string;
     fieldValues?: Record<string, any>;
+    comment?: string;
   }): Promise<ToolResponse> {
-    const { issueKey, transitionId, fieldValues } = args;
+    const { issueKey, transitionId, fieldValues, comment } = args;
     return this.handle(
-      () => this.service.transitionIssueInteractive(issueKey, transitionId, fieldValues),
+      () => this.service.transitionIssueInteractive(issueKey, transitionId, fieldValues, comment),
       {
         operation: `Failed to transition Jira issue ${issueKey} (interactive mode)`,
-        params: { 'Transition ID': transitionId, 'Field Values': JSON.stringify(fieldValues || {}, null, 2) },
+        params: { 'Transition ID': transitionId, 'Field Values': JSON.stringify(fieldValues || {}, null, 2), Comment: comment },
         tip: ERROR_TIPS.JIRA_TRANSITION,
       },
       (result) => {

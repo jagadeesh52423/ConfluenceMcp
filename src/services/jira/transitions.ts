@@ -40,11 +40,14 @@ export class JiraTransitionService extends JiraBaseService {
     return response.transitions;
   }
 
-  async transitionIssue(issueKey: string, transitionId: string, fieldValues?: Record<string, any>): Promise<JiraTransitionResponse> {
+  async transitionIssue(issueKey: string, transitionId: string, fieldValues?: Record<string, any>, comment?: string): Promise<JiraTransitionResponse> {
     try {
       const data: any = { transition: { id: transitionId } };
       if (fieldValues && Object.keys(fieldValues).length > 0) {
         data.fields = await this.normalizeFieldValues(issueKey, transitionId, fieldValues);
+      }
+      if (comment) {
+        data.update = { comment: [{ add: { body: this.toADF(comment) } }] };
       }
       await this.client.post(`/rest/api/3/issue/${issueKey}/transitions`, data);
       return { success: true, message: `Issue ${issueKey} successfully transitioned` };
@@ -62,12 +65,16 @@ export class JiraTransitionService extends JiraBaseService {
           };
         }
       }
+      const errorData = error.response?.data;
+      if (!comment && error.response?.status === 400 && errorData?.errorMessages?.length && !Object.keys(errorData.errors ?? {}).length) {
+        errorData.tip = 'This may be a workflow validator; try passing `comment`.';
+      }
       throw error;
     }
   }
 
-  async transitionIssueInteractive(issueKey: string, transitionId: string, providedFields?: Record<string, any>): Promise<JiraTransitionResponse> {
-    const result = await this.transitionIssue(issueKey, transitionId, providedFields);
+  async transitionIssueInteractive(issueKey: string, transitionId: string, providedFields?: Record<string, any>, comment?: string): Promise<JiraTransitionResponse> {
+    const result = await this.transitionIssue(issueKey, transitionId, providedFields, comment);
     if (result.success || !result.requiresInput) return result;
 
     if (result.requiredFields && result.requiredFields.length > 0) {
@@ -80,7 +87,7 @@ export class JiraTransitionService extends JiraBaseService {
         }
       }
       if (autoFilledNames.length > 0) {
-        const retryResult = await this.transitionIssue(issueKey, transitionId, autoFields);
+        const retryResult = await this.transitionIssue(issueKey, transitionId, autoFields, comment);
         if (retryResult.success) {
           retryResult.message = `${retryResult.message} (auto-filled: ${autoFilledNames.join(', ')})`;
         }

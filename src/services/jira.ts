@@ -57,8 +57,8 @@ export class JiraService {
 
   // Transitions
   getIssueTransitions(key: string)                                             { return this.transitions.getIssueTransitions(key); }
-  transitionIssue(key: string, transitionId: string, fields?: Record<string, any>) { return this.transitions.transitionIssue(key, transitionId, fields); }
-  transitionIssueInteractive(key: string, transitionId: string, fields?: Record<string, any>) { return this.transitions.transitionIssueInteractive(key, transitionId, fields); }
+  transitionIssue(key: string, transitionId: string, fields?: Record<string, any>, comment?: string) { return this.transitions.transitionIssue(key, transitionId, fields, comment); }
+  transitionIssueInteractive(key: string, transitionId: string, fields?: Record<string, any>, comment?: string) { return this.transitions.transitionIssueInteractive(key, transitionId, fields, comment); }
 
   // Comments
   addComment(key: string, comment: string)                                     { return this.comments.addComment(key, comment); }
