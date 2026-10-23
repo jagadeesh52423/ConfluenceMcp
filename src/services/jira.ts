@@ -50,7 +50,7 @@ export class JiraService {
   createIssue(...args: Parameters<JiraIssueService['createIssue']>)            { return this.issues.createIssue(...args); }
   updateIssue(...args: Parameters<JiraIssueService['updateIssue']>)            { return this.issues.updateIssue(...args); }
   deleteIssue(key: string, deleteSubtasks?: boolean)                           { return this.issues.deleteIssue(key, deleteSubtasks); }
-  assignIssue(key: string, accountId: string)                                  { return this.issues.assignIssue(key, accountId); }
+  assignIssue(key: string, accountId: string | null)                                 { return this.issues.assignIssue(key, accountId); }
   batchCreateIssues(...args: Parameters<JiraIssueService['batchCreateIssues']>){ return this.issues.batchCreateIssues(...args); }
   getIssueHistory(key: string)                                                 { return this.issues.getIssueHistory(key); }
   getDevStatus(id: string, appType?: string, dataType?: string)                { return this.issues.getDevStatus(id, appType, dataType); }

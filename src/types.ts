@@ -192,6 +192,8 @@ export interface SearchOptions {
   fields?: string[];
   limit?: number;
   startAt?: number;
+  nextPageToken?: string;
+  orderBy?: string;
   expand?: string[];
 }
 

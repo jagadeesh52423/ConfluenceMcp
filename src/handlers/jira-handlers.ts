@@ -28,8 +28,10 @@ export class JiraHandlers extends BaseHandler {
     jql?: string;
     fields?: string[];
     limit?: number;
+    nextPageToken?: string;
+    orderBy?: string;
   }): Promise<ToolResponse> {
-    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit } = args;
+    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit, nextPageToken, orderBy } = args;
     if (fields !== undefined && !Array.isArray(fields)) {
       return errorResponse(new Error('Invalid fields parameter'), {
         operation: 'Failed to search Jira issues',
@@ -45,7 +47,7 @@ export class JiraHandlers extends BaseHandler {
       });
     }
     return this.handle(
-      () => this.service.searchIssues({ query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit }),
+      () => this.service.searchIssues({ query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql, fields, limit, nextPageToken, orderBy }),
       { operation: 'Failed to search Jira issues', params: { Query: query || 'none', Assignee: assignee || 'none', JQL: jql || 'none', Limit: limit || 50 }, tip: ERROR_TIPS.JIRA_SEARCH },
       jsonResponse
     );
@@ -398,6 +400,15 @@ export class JiraHandlers extends BaseHandler {
       () => this.service.getWatchers(issueKey),
       { operation: 'Failed to get watchers', params: { 'Issue Key': issueKey }, tip: ERROR_TIPS.JIRA_ISSUE_VIEW },
       jsonResponse
+    );
+  }
+
+  async assignIssue(args: { issueKey: string; accountId?: string }): Promise<ToolResponse> {
+    const { issueKey, accountId } = args;
+    return this.handle(
+      () => this.service.assignIssue(issueKey, accountId || null),
+      { operation: 'Failed to assign issue', params: { 'Issue Key': issueKey, 'Account ID': accountId || 'unassign' }, tip: 'Use jira_lookup_user to find the accountId and check you have the Assign Issues permission.' },
+      () => successResponse(accountId ? `${issueKey} assigned to ${accountId}` : `${issueKey} unassigned`)
     );
   }
 

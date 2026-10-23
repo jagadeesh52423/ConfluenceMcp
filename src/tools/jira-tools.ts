@@ -58,6 +58,14 @@ export const jiraTools: ToolDefinition[] = [
           description: `Maximum number of results (default: ${PAGINATION.JIRA_DEFAULT_LIMIT})`,
           default: PAGINATION.JIRA_DEFAULT_LIMIT,
         },
+        nextPageToken: {
+          type: 'string',
+          description: 'Token from a previous response\'s nextPageToken to fetch the next page. Response includes isLast=true when no more results.',
+        },
+        orderBy: {
+          type: 'string',
+          description: 'JQL ordering for filter params, e.g. "created DESC" (default: "updated DESC"). Ignored when raw jql is provided.',
+        },
       },
     },
   },
@@ -884,6 +892,24 @@ export const jiraTools: ToolDefinition[] = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'jira_assign_issue',
+    description: 'Assign a Jira issue to a user, or unassign it by omitting accountId. Use jira_lookup_user to find the accountId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issueKey: {
+          type: 'string',
+          description: 'The issue key (e.g., PROJ-123)',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Account ID of the new assignee. Omit to unassign.',
+        },
+      },
+      required: ['issueKey'],
     },
   },
   {

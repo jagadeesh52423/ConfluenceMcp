@@ -3,8 +3,8 @@ import { JiraBaseService } from './base.js';
 
 export class JiraIssueService extends JiraBaseService {
 
-  async searchIssues(options: SearchOptions = {}): Promise<JiraIssue[]> {
-    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql: rawJql, fields: extraFields, limit = 50, startAt = 0 } = options;
+  async searchIssues(options: SearchOptions = {}): Promise<{ issues: any[]; nextPageToken: string | null; isLast: boolean }> {
+    const { query, assignee, status, project, labels, reporter, createdAfter, updatedAfter, jql: rawJql, fields: extraFields, limit = 50, nextPageToken, orderBy } = options;
 
     let jql: string;
 
@@ -27,16 +27,17 @@ export class JiraIssueService extends JiraBaseService {
         conditions.push(`updated >= "${dateValue}"`);
       }
       if (conditions.length === 0) conditions.push('created >= -90d');
-      jql = `${conditions.join(' AND ')} ORDER BY updated DESC`;
+      jql = `${conditions.join(' AND ')} ORDER BY ${orderBy?.trim() || 'updated DESC'}`;
     }
 
     const defaultFields = ['summary', 'description', 'status', 'assignee', 'labels', 'created', 'updated'];
     const requestFields = extraFields && extraFields.length > 0 ? [...new Set(extraFields)] : defaultFields;
 
-    const params = { jql, maxResults: limit, startAt, fields: requestFields.join(',') };
+    const params: Record<string, any> = { jql, maxResults: limit, fields: requestFields.join(',') };
+    if (nextPageToken) params.nextPageToken = nextPageToken;
     const response = await this.client.get<any>('/rest/api/3/search/jql', params);
 
-    return response.issues.map((issue: any) => {
+    const issues = response.issues.map((issue: any) => {
       const result: any = { key: issue.key };
       for (const field of requestFields) {
         const value = issue.fields[field];
@@ -56,6 +57,7 @@ export class JiraIssueService extends JiraBaseService {
       }
       return result;
     });
+    return { issues, nextPageToken: response.nextPageToken ?? null, isLast: response.isLast ?? !response.nextPageToken };
   }
 
   async getIssue(issueKey: string, fields?: string[]): Promise<any> {
@@ -141,7 +143,7 @@ export class JiraIssueService extends JiraBaseService {
     await this.client.delete(`/rest/api/3/issue/${issueKey}${query}`);
   }
 
-  async assignIssue(issueKey: string, accountId: string): Promise<void> {
+  async assignIssue(issueKey: string, accountId: string | null): Promise<void> {
     await this.client.put(`/rest/api/3/issue/${issueKey}/assignee`, { accountId });
   }
 

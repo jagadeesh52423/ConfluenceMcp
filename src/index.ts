@@ -148,6 +148,7 @@ registry.registerAll({
   'jira_get_issue_types':            (a) => j.getIssueTypes(a),
   'jira_get_fields':                 (a) => j.getFields(a),
   'jira_lookup_user':                (a) => j.lookupUser(a),
+  'jira_assign_issue':               (a) => j.assignIssue(a),
 
   // Bitbucket
   'bitbucket_get_repositories':      (a) => b.getRepositories(a),
