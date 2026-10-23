@@ -67,6 +67,7 @@ registry.registerAll({
   'confluence_embed_image':        (a) => c.embedImage(a),
   'confluence_get_comments':       (a) => c.getComments(a),
   'confluence_add_comment':        (a) => c.addComment(a),
+  'confluence_add_inline_comment': (a) => c.addInlineComment(a),
   'confluence_update_comment':     (a) => c.updateComment(a),
   'confluence_delete_comment':     (a) => c.deleteComment(a),
   'confluence_get_page_children':  (a) => c.getPageChildren(a),

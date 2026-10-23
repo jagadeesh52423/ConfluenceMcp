@@ -256,16 +256,29 @@ export class ConfluenceHandlers extends BaseHandler {
     );
   }
 
-  async addComment(args: { pageId: string; body: string }): Promise<ToolResponse> {
-    const { pageId, body } = args;
+  async addComment(args: { pageId: string; body: string; parentCommentId?: string; commentType?: 'footer' | 'inline' }): Promise<ToolResponse> {
+    const { pageId, body, parentCommentId, commentType } = args;
     return this.handle(
-      () => this.service.addComment(pageId, body),
-      { operation: 'Failed to add comment', params: { 'Page ID': pageId }, tip: 'Check if the page exists and you have permission to comment on it.' },
+      () => this.service.addComment(pageId, body, parentCommentId, commentType),
+      { operation: 'Failed to add comment', params: { 'Page ID': pageId, 'Parent Comment ID': parentCommentId }, tip: 'Check if the page exists and you have permission to comment on it.' },
       (comment) => successResponse(
         `${ICONS.SUCCESS} Comment added successfully!\n\n` +
         `**Comment ID:** ${comment.id}\n` +
         `**Author:** ${comment.author}\n` +
         `**Created:** ${comment.created}`
+      )
+    );
+  }
+
+  async addInlineComment(args: { pageId: string; body: string; textSelection: string; textSelectionMatchIndex?: number }): Promise<ToolResponse> {
+    const { pageId, body, textSelection, textSelectionMatchIndex } = args;
+    return this.handle(
+      () => this.service.addInlineComment(pageId, body, textSelection, textSelectionMatchIndex),
+      { operation: 'Failed to add inline comment', params: { 'Page ID': pageId, 'Text Selection': textSelection, 'Match Index': textSelectionMatchIndex }, tip: 'Check that the text appears exactly on the page; use textSelectionMatchIndex to pick among repeated matches.' },
+      (comment) => successResponse(
+        `${ICONS.SUCCESS} Inline comment added successfully!\n\n` +
+        `**Comment ID:** ${comment.id}\n` +
+        `**Anchored text:** ${comment.anchoredText ?? textSelection}`
       )
     );
   }

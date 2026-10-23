@@ -689,24 +689,69 @@ export class ConfluenceService {
     };
   }
 
-  async addComment(pageId: string, body: string): Promise<ConfluenceComment> {
-    const data = {
-      pageId,
-      body: this.adfBodyEnvelope(body),
-    };
+  /**
+   * Add a footer comment, or reply to an existing comment when `parentCommentId`
+   * is given. Replies omit `pageId` and route by `commentType` (the parent's kind).
+   */
+  async addComment(
+    pageId: string,
+    body: string,
+    parentCommentId?: string,
+    commentType: ConfluenceCommentType = 'footer',
+  ): Promise<ConfluenceComment> {
+    if (commentType === 'inline' && !parentCommentId) {
+      throw new Error('commentType "inline" is only for replies; use confluence_add_inline_comment to start an inline comment');
+    }
+    const source = ConfluenceService.COMMENT_SOURCES[commentType];
+    const data = parentCommentId
+      ? { parentCommentId, body: this.adfBodyEnvelope(body) }
+      : { pageId, body: this.adfBodyEnvelope(body) };
 
     const comment = await this.client.post<any>(
-      `${ConfluenceService.V2}/footer-comments?${ConfluenceService.BODY_FORMAT_QS}`,
+      `${ConfluenceService.V2}/${source.path}?${ConfluenceService.BODY_FORMAT_QS}`,
       data,
     );
 
     // Reuse the shared base mapper for a consistent shape; keep the `?? body`
     // fallback since a freshly-created comment response may omit the body.
     return {
-      ...this.mapBaseComment(comment),
-      type: 'footer',
+      ...this[source.map](comment),
       body: this.parseAdfBody(comment?.body) ?? body,
     };
+  }
+
+  /** Add an inline comment anchored to `textSelection`, the Nth (0-based) occurrence on the page. */
+  async addInlineComment(
+    pageId: string,
+    body: string,
+    textSelection: string,
+    textSelectionMatchIndex: number = 0,
+  ): Promise<ConfluenceComment> {
+    if (!textSelection) throw new Error('textSelection must be non-empty');
+    const page = await this.client.get<any>(
+      `${ConfluenceService.V2}/pages/${pageId}?${ConfluenceService.BODY_FORMAT_QS}`,
+    );
+    // Inline siblings join with '' so a selection spanning formatting ("foo **bar**")
+    // still matches; blocks join with '\n'. Non-overlapping count, like split().
+    // ponytail: inline nodes without text (mentions, emoji) contribute nothing.
+    const blockText = (n: any): string => n?.type === 'text' ? n.text ?? ''
+      : n?.type === 'hardBreak' ? '\n'
+      : (n?.content ?? []).map(blockText).join((n?.content ?? []).some((c: any) => c?.type === 'text') ? '' : '\n');
+    const matchCount = blockText(this.parseAdfBody(page?.body)).split(textSelection).length - 1;
+    if (matchCount === 0) throw new Error(`Text "${textSelection}" not found on page ${pageId}`);
+    if (textSelectionMatchIndex < 0 || textSelectionMatchIndex >= matchCount) {
+      throw new Error(`textSelectionMatchIndex ${textSelectionMatchIndex} out of range: ${matchCount} match(es) found`);
+    }
+
+    const comment = await this.client.post<any>(
+      `${ConfluenceService.V2}/inline-comments?${ConfluenceService.BODY_FORMAT_QS}`,
+      {
+        pageId,
+        body: this.adfBodyEnvelope(body),
+        inlineCommentProperties: { textSelection, textSelectionMatchCount: matchCount, textSelectionMatchIndex },
+      },
+    );
+    return { ...this.mapInlineComment(comment), body: this.parseAdfBody(comment?.body) ?? body };
   }
 
   async updateComment(commentId: string, body: string, version: number): Promise<ConfluenceComment> {

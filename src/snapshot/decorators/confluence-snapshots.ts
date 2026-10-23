@@ -40,6 +40,12 @@ export function applyConfluenceSnapshots(
       extractEntityId: () => 'new',
     },
 
+    addInlineComment: {
+      operationType: 'create',
+      entityType: 'comment',
+      extractEntityId: () => 'new',
+    },
+
     updateComment: {
       operationType: 'update',
       entityType: 'comment',

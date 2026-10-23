@@ -333,7 +333,7 @@ export const confluenceTools: ToolDefinition[] = [
   },
   {
     name: 'confluence_add_comment',
-    description: 'Add a comment to a Confluence page',
+    description: 'Add a comment to a Confluence page, or reply to an existing comment via parentCommentId',
     inputSchema: {
       type: 'object',
       properties: {
@@ -345,8 +345,44 @@ export const confluenceTools: ToolDefinition[] = [
           type: 'string',
           description: 'Comment content as Markdown. Converted to ADF before submission.',
         },
+        parentCommentId: {
+          type: 'string',
+          description: 'Reply to this comment ID instead of adding a top-level comment',
+        },
+        commentType: {
+          type: 'string',
+          enum: ['footer', 'inline'],
+          description: 'Kind of the parent comment when replying (default: footer)',
+        },
       },
       required: ['pageId', 'body'],
+    },
+  },
+  {
+    name: 'confluence_add_inline_comment',
+    description: 'Add an inline comment anchored to exact text on a Confluence page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'The page ID to comment on',
+        },
+        body: {
+          type: 'string',
+          description: 'Comment content as Markdown. Converted to ADF before submission.',
+        },
+        textSelection: {
+          type: 'string',
+          description: 'Exact page text to anchor the comment to',
+        },
+        textSelectionMatchIndex: {
+          type: 'number',
+          description: 'Which occurrence of textSelection to anchor to, 0-based (default: 0)',
+          default: 0,
+        },
+      },
+      required: ['pageId', 'body', 'textSelection'],
     },
   },
   {
