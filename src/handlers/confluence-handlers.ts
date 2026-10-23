@@ -17,11 +17,11 @@ import { BaseHandler } from './base-handler.js';
 export class ConfluenceHandlers extends BaseHandler {
   constructor(private service: ConfluenceService) { super(); }
 
-  async searchPages(args: { query?: string; limit?: number }): Promise<ToolResponse> {
-    const { query, limit } = args;
+  async searchPages(args: { query?: string; cql?: string; limit?: number }): Promise<ToolResponse> {
+    const { query, cql, limit } = args;
     return this.handle(
-      () => this.service.searchPages({ query, limit }),
-      { operation: 'Failed to search Confluence pages', params: { Query: query || 'none', Limit: limit || 25 }, tip: ERROR_TIPS.CONFLUENCE_SEARCH },
+      () => this.service.searchPages({ query, cql, limit }),
+      { operation: 'Failed to search Confluence pages', params: { Query: query || 'none', CQL: cql || 'none', Limit: limit || 25 }, tip: ERROR_TIPS.CONFLUENCE_SEARCH },
       jsonResponse
     );
   }

@@ -132,12 +132,16 @@ export class ConfluenceService {
   // ---------- Pages ----------
 
   async searchPages(options: SearchOptions = {}): Promise<ConfluencePage[]> {
-    // CQL search stays on v1 — v2 has no equivalent. Body returned by v1 is
-    // storage-format HTML (a string); ConfluencePage.content is `any` so this
-    // is allowed but consumers should treat search results as opaque.
-    const { query, limit = 25, startAt = 0, expand = ['body.storage', 'version', 'space'] } = options;
+    // CQL search stays on v1 — v2 has no equivalent. Body is not expanded by
+    // default (payload); results carry `excerpt` instead and `content` is ''
+    // unless the caller expands content.body.storage.
+    const { query, cql: rawCql, limit = 25, startAt = 0, expand = ['content.version', 'content.space', 'content.history'] } = options;
 
-    const cql = query ? `text ~ "${query}"` : '';
+    if (!query && !rawCql) {
+      throw new Error('Either query or cql must be provided');
+    }
+    const escaped = (query ?? '').replace(/[\\"]/g, '\\$&');
+    const cql = rawCql || `type = page AND text ~ "${escaped}"`;
     const params: any = {
       cql,
       limit,
@@ -147,15 +151,20 @@ export class ConfluenceService {
 
     const response = await this.client.get<any>(`${ConfluenceService.V1}/search`, params);
 
-    return (response.results ?? []).map((page: any) => ({
-      id: page.id,
-      title: page.title,
-      content: page.body?.storage?.value ?? '',
-      spaceKey: page.space?.key ?? '',
-      version: page.version?.number ?? 1,
-      created: page.created ?? '',
-      updated: page.updated ?? '',
-    }));
+    return (response.results ?? []).map((result: any) => {
+      const page = result.content ?? result;
+      return {
+        id: page.id,
+        title: page.title ?? result.title,
+        content: page.body?.storage?.value ?? '',
+        spaceKey: page.space?.key ?? '',
+        version: page.version?.number ?? 1,
+        created: page.history?.createdDate ?? '',
+        updated: result.lastModified ?? page.version?.when ?? '',
+        excerpt: result.excerpt,
+        url: result.url,
+      };
+    });
   }
 
   async getPage(pageId: string): Promise<ConfluencePage> {

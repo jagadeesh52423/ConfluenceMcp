@@ -180,6 +180,7 @@ export interface BitbucketRepository {
 
 export interface SearchOptions {
   query?: string;
+  cql?: string;
   assignee?: string;
   status?: string;
   project?: string;

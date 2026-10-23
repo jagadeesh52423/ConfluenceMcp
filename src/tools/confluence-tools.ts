@@ -19,13 +19,17 @@ export interface ToolDefinition {
 export const confluenceTools: ToolDefinition[] = [
   {
     name: 'confluence_search_pages',
-    description: 'Search Confluence pages by text query (CQL). Returns matching pages; the `content` field on each result is opaque (legacy v1 storage HTML) and should not be relied on — fetch the page by id with confluence_get_page for the ADF body.',
+    description: 'Search Confluence pages by text query or raw CQL (provide query or cql). Returns matching pages with `excerpt` and `url`; `content` is empty — fetch the page by id with confluence_get_page for the ADF body.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Text to search for in pages',
+          description: 'Text to search for in pages (restricted to type = page)',
+        },
+        cql: {
+          type: 'string',
+          description: 'Raw CQL, used instead of query (e.g. space = DEV AND label = foo AND type = page)',
         },
         limit: {
           type: 'number',
