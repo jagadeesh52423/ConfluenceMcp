@@ -33,7 +33,7 @@ This is an **MCP (Model Context Protocol) server** that provides AI assistants w
 ### Key Components
 
 **Main Entry Point (`src/index.ts`):**
-- Routes all available MCP tools (93 total: 21 Confluence, 49 Jira, 23 Bitbucket; definitions live in `src/tools/`)
+- Routes all available MCP tools (102 total: 22 Confluence, 50 Jira, 30 Bitbucket; definitions live in `src/tools/`)
 - Handles tool routing and comprehensive error handling
 - Registers service instances for each Atlassian product
 

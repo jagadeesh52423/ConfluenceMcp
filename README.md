@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/@jagadeesh52423%2Fatlassian-mcp-server.svg)](https://www.npmjs.com/package/@jagadeesh52423/atlassian-mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 92 tools covering deep CRUD across all three products.
+An MCP (Model Context Protocol) server that gives AI assistants full access to Jira, Confluence, and Bitbucket Cloud APIs -- 102 tools covering deep CRUD across all three products.
 
 ## What It Does
 
@@ -11,9 +11,9 @@ This server acts as a bridge between any MCP-compatible AI client (Claude Deskto
 
 ### Key Features
 
-- **Confluence** (20 tools) -- Search, create, read, update, and delete pages. Manage spaces, child pages, comments (full CRUD), attachments, labels, and version history. Input accepts Markdown (auto-converted to ADF); output is native ADF JSON.
-- **Jira** (49 tools) -- Full issue lifecycle: search, CRUD, comments, transitions, attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints (incl. moving issues into a sprint), versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
-- **Bitbucket** (23 tools) -- Repository management, branches, commits, pull requests (create/update/list, reviewers, approve/request changes, merge/decline), PR comments with resolve/unresolve, and issue tracking.
+- **Confluence** (22 tools) -- Search (text or raw CQL), create, read, update, and delete pages. Manage spaces, child pages, comments (full CRUD, replies, and text-anchored inline comments), attachments, labels, and version history. Input accepts Markdown (auto-converted to ADF); output is native ADF JSON.
+- **Jira** (50 tools) -- Full issue lifecycle: search (with `nextPageToken` paging), CRUD, assign, comments, transitions (with an optional comment), attachments, issue links, worklogs, watchers, subtasks, labels, history, agile boards, sprints (incl. moving issues into a sprint), versions, batch creation (up to 50 issues), dev status, epic linking, and user lookup.
+- **Bitbucket** (30 tools) -- Repository management, branches, commits, pull requests (create/update/list, reviewers, approve/request changes, merge/decline), PR comments with resolve/unresolve, PR diffstat and per-file diffs, file content at a ref, CI/pipeline status and step logs, and issue tracking.
 - **Smart Field Handling** -- AI-driven field suggestions during Jira transitions. Analyzes issue context to auto-suggest values for required fields (e.g., DB scripts, test cases), reducing manual input.
 - **Snapshot Safety Net** -- Automatic local snapshots of mutating operations (create/update/delete) with configurable retention, so you can recover from accidental changes.
 
@@ -172,11 +172,11 @@ Add one of the following to your Claude Desktop config:
 
 ## Available Tools
 
-### Confluence (20 tools)
+### Confluence (22 tools)
 
 | Tool | Description |
 |------|-------------|
-| `confluence_search_pages` | Search pages via CQL text query |
+| `confluence_search_pages` | Search pages by text query or raw `cql` (results restricted to pages for `query`) |
 | `confluence_get_page` | Get a page by ID (returns ADF JSON body) |
 | `confluence_create_page` | Create a page (accepts Markdown) |
 | `confluence_update_page` | Update a page (accepts Markdown). Re-anchors inline comments automatically; reports any it could not |
@@ -190,20 +190,22 @@ Add one of the following to your Claude Desktop config:
 | `confluence_add_attachment` | Upload an attachment |
 | `confluence_delete_attachment` | Delete an attachment |
 | `confluence_get_comments` | Get footer and/or inline comments (ADF JSON). `commentType`: `footer` \| `inline` \| `all` (default `all`) |
-| `confluence_add_comment` | Add a comment (Markdown) |
+| `confluence_add_comment` | Add a comment (Markdown), or reply via `parentCommentId` |
+| `confluence_add_inline_comment` | Add an inline comment anchored to exact page text |
 | `confluence_update_comment` | Update a comment (Markdown) |
 | `confluence_delete_comment` | Delete a comment |
 | `confluence_get_labels` | Get page labels |
 | `confluence_add_labels` | Add labels to a page |
 | `confluence_remove_label` | Remove a label |
+| `confluence_embed_image` | Deprecated: not supported, always returns an error (use `confluence_add_attachment`) |
 
-### Jira (49 tools)
+### Jira (50 tools)
 
 | Category | Tools |
 |----------|-------|
-| **Core** | `search_issues`, `get_issue`, `create_issue`, `update_issue`, `delete_issue`, `get_projects`, `get_issue_types`, `get_fields`, `lookup_user` |
+| **Core** | `search_issues`, `get_issue`, `create_issue`, `update_issue`, `delete_issue`, `get_projects`, `get_issue_types`, `get_fields`, `lookup_user`, `assign_issue` |
 | **Comments** | `add_comment`, `get_comments`, `update_comment`, `delete_comment` |
-| **Transitions** | `get_issue_transitions`, `transition_issue`, `transition_issue_interactive` (smart field handling) |
+| **Transitions** | `get_issue_transitions`, `transition_issue`, `transition_issue_interactive` (smart field handling); both accept an optional `comment` |
 | **Attachments** | `get_attachments`, `add_attachment`, `delete_attachment` |
 | **Issue Links** | `get_issue_links`, `create_issue_link`, `delete_issue_link`, `get_link_types` |
 | **Worklogs** | `get_worklogs`, `add_worklog`, `update_worklog`, `delete_worklog` |
@@ -218,7 +220,7 @@ Add one of the following to your Claude Desktop config:
 
 All Jira tools are prefixed with `jira_`.
 
-### Bitbucket (23 tools)
+### Bitbucket (30 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -245,6 +247,13 @@ All Jira tools are prefixed with `jira_`.
 | `bitbucket_remove_change_request_pr` | Remove your change request from a pull request |
 | `bitbucket_merge_pr` | Merge a pull request (optional strategy, message, close source branch) |
 | `bitbucket_decline_pr` | Decline a pull request |
+| `bitbucket_get_pr_diffstat` | Get per-file change summary for a PR |
+| `bitbucket_get_pr_file_diff` | Get the diff of a single file in a PR |
+| `bitbucket_get_file_content` | Get file content at a branch or commit |
+| `bitbucket_get_pr_statuses` | Get CI/build statuses for a PR with a summary |
+| `bitbucket_get_pipelines` | List recent Pipelines runs, optionally by branch |
+| `bitbucket_get_pipeline_steps` | Get per-step status of a pipeline run |
+| `bitbucket_get_pipeline_step_log` | Get the log of a pipeline step (last 200KB) |
 
 ### PR comment resolution (v1.3.0+)
 
